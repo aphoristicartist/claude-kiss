@@ -1,0 +1,20 @@
+Claude KISS prompt guidance is original to this project, but its concise coding-agent
+structure was informed by prompts in OpenAI's Codex CLI.
+Copyright 2026 Aleksandr Lisenko
+
+Source: https://github.com/openai/codex
+Reviewed commit: 1674b0a130987522de3f34d080b793585a355da1 (2026-08-20)
+Source license: Apache License 2.0
+
+OpenAI does not sponsor or endorse Claude KISS. "Codex" and "OpenAI" are trademarks
+of their respective owners.
+
+Upstream source notice:
+
+OpenAI Codex
+Copyright 2025 OpenAI
+
+This project includes code derived from Ratatui (https://github.com/ratatui/ratatui),
+licensed under the MIT license.
+Copyright (c) 2016-2022 Florian Dehau
+Copyright (c) 2023-2025 The Ratatui Developers

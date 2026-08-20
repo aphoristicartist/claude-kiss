@@ -1,0 +1,236 @@
+#!/bin/sh
+set -eu
+
+version="0.2.2"
+claude_bin="${CLAUDE_BIN:-claude}"
+default_home=__CLAUDE_KISS_DEFAULT_HOME__
+home="${CLAUDE_KISS_HOME:-$default_home}"
+
+if [ ! -f "$home/prompt/claude-kiss.md" ] || [ ! -f "$home/config/settings.json" ]; then
+  script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+  for candidate in "$script_dir/../share/claude-kiss" "$script_dir/.." "$HOME/.local/share/claude-kiss"; do
+    if [ -f "$candidate/prompt/claude-kiss.md" ] && [ -f "$candidate/config/settings.json" ]; then
+      home=$candidate
+      break
+    fi
+  done
+fi
+
+home=$(CDPATH= cd -- "$home" && pwd -P)
+prompt="${CLAUDE_KISS_PROMPT:-$home/prompt/claude-kiss.md}"
+settings="${CLAUDE_KISS_SETTINGS:-$home/config/settings.json}"
+tools="${CLAUDE_KISS_TOOLS:-Bash,Glob,Grep,Read,Edit,Write}"
+compact_profile="${CLAUDE_KISS_COMPACT:-kiss}"
+compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
+
+print_help() {
+  cat <<'EOF'
+claude-kiss — Claude Code with a concise user-first prompt and a lean tool surface
+
+Usage:
+  claude-kiss [normal Claude Code arguments]
+  claude-kiss auth [arguments]     Run Claude auth without KISS session flags
+  claude-kiss doctor               Check the local installation
+  claude-kiss --help               Show this help
+  claude-kiss --version            Show wrapper and Claude versions
+
+Useful overrides:
+  CLAUDE_BIN=path                  Claude executable (default: claude)
+  CLAUDE_KISS_HOME=path            Installation/data directory
+  CLAUDE_KISS_PROMPT=path          Replacement system-prompt file
+  CLAUDE_KISS_SETTINGS=path        Replacement settings file
+  CLAUDE_KISS_TOOLS=list           Built-in tool list, or 'default'
+  CLAUDE_KISS_SETTING_SOURCES=list Settings scopes (default: user)
+  CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
+  CLAUDE_KISS_MCP=1                Allow normal MCP discovery
+  CLAUDE_KISS_CLAUDE_MD=0          Do not load CLAUDE.md memory files
+  CLAUDE_KISS_COMPACT=PROFILE      kiss, plain, early, manual, or off
+  CLAUDE_KISS_AUTOCOMPACT=SIZE     Custom window for early mode (default: 500k)
+  CLAUDE_KISS_COMPACT_MEMORY=path  Directory containing CLAUDE.md compact policy
+  CLAUDE_KISS_ISOLATED=1           Use a separate Claude config directory
+  CLAUDE_KISS_DRY_RUN=1            Print the command instead of launching Claude
+
+Unless overridden, the wrapper replaces the vendor system prompt, uses the six core
+coding tools, removes bundled skills/workflows, disables MCP discovery, loads user
+settings so /model works, opts out of nonessential traffic, and leaves the normal
+`claude` command untouched. The default `kiss` compaction profile uses Claude's tuned
+automatic timing plus a concise editable compact-instructions memory.
+EOF
+}
+
+case "${1-}" in
+  -h|--help)
+    print_help
+    exit 0
+    ;;
+  --version)
+    printf 'claude-kiss %s\n' "$version"
+    if command -v "$claude_bin" >/dev/null 2>&1; then
+      "$claude_bin" --version
+    else
+      printf 'claude executable not found\n' >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  auth)
+    shift
+    exec "$claude_bin" auth "$@"
+    ;;
+esac
+
+if ! command -v "$claude_bin" >/dev/null 2>&1; then
+  printf 'claude-kiss: Claude Code executable not found: %s\n' "$claude_bin" >&2
+  exit 127
+fi
+
+if [ ! -f "$prompt" ]; then
+  printf 'claude-kiss: prompt not found: %s\n' "$prompt" >&2
+  exit 1
+fi
+if [ ! -f "$settings" ]; then
+  printf 'claude-kiss: settings not found: %s\n' "$settings" >&2
+  exit 1
+fi
+
+case "$compact_profile" in
+  kiss|plain|early|manual|off) ;;
+  *)
+    printf 'claude-kiss: invalid CLAUDE_KISS_COMPACT profile: %s\n' "$compact_profile" >&2
+    printf 'Expected kiss, plain, early, manual, or off.\n' >&2
+    exit 2
+    ;;
+esac
+
+load_compact_memory=0
+case "$compact_profile" in
+  kiss|early|manual) load_compact_memory=1 ;;
+esac
+if [ "${CLAUDE_KISS_CLAUDE_MD:-1}" = "0" ] || [ "$compact_memory" = "0" ]; then
+  load_compact_memory=0
+fi
+if [ "$load_compact_memory" -eq 1 ] && { [ ! -d "$compact_memory" ] || [ ! -f "$compact_memory/CLAUDE.md" ]; }; then
+  printf 'claude-kiss: compact memory directory must contain CLAUDE.md: %s\n' "$compact_memory" >&2
+  exit 1
+fi
+if [ "$load_compact_memory" -eq 1 ]; then
+  compact_memory=$(CDPATH= cd -- "$compact_memory" && pwd -P)
+fi
+
+if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
+  printf 'claude-kiss %s\n' "$version"
+  printf 'home: %s\n' "$home"
+  printf 'prompt: %s\n' "$prompt"
+  printf 'settings: %s\n' "$settings"
+  printf 'tools: %s\n' "$tools"
+  printf 'compaction: %s\n' "$compact_profile"
+  printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
+  printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
+  if [ "$load_compact_memory" -eq 1 ]; then
+    printf 'compact memory: %s/CLAUDE.md\n' "$compact_memory"
+  else
+    printf 'compact memory: disabled\n'
+  fi
+  printf 'claude: %s\n' "$(command -v "$claude_bin")"
+  "$claude_bin" --version
+  "$claude_bin" --system-prompt-file /dev/null --version >/dev/null 2>&1 || {
+    printf 'error: installed Claude Code lacks or rejects --system-prompt-file\n' >&2
+    exit 1
+  }
+  exit 0
+fi
+
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1
+export CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1
+export CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1
+export CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+export CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0
+export DISABLE_AUTOUPDATER=1
+export DISABLE_ERROR_REPORTING=1
+export DISABLE_TELEMETRY=1
+
+if [ "${CLAUDE_KISS_CLAUDE_MD:-1}" = "0" ]; then
+  export CLAUDE_CODE_DISABLE_CLAUDE_MDS=1
+fi
+
+if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
+  export CLAUDE_CONFIG_DIR="${CLAUDE_KISS_CONFIG_DIR:-$HOME/.local/state/claude-kiss/config}"
+  mkdir -p "$CLAUDE_CONFIG_DIR"
+fi
+
+user_setting_sources=0
+user_settings=0
+user_system_prompt=0
+user_tools=0
+user_autocompact=0
+has_mcp_config=0
+for argument in "$@"; do
+  case "$argument" in
+    --setting-sources|--setting-sources=*) user_setting_sources=1 ;;
+    --settings|--settings=*) user_settings=1 ;;
+    --system-prompt|--system-prompt=*|--system-prompt-file|--system-prompt-file=*) user_system_prompt=1 ;;
+    --tools|--tools=*) user_tools=1 ;;
+    --autocompact|--autocompact=*) user_autocompact=1 ;;
+    --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
+  esac
+done
+
+export DISABLE_AUTO_COMPACT=0
+export DISABLE_COMPACT=0
+case "$compact_profile" in
+  manual) export DISABLE_AUTO_COMPACT=1 ;;
+  off) export DISABLE_AUTO_COMPACT=1; export DISABLE_COMPACT=1 ;;
+esac
+
+if [ "$compact_profile" = "early" ] && [ "$user_autocompact" -eq 0 ]; then
+  set -- --autocompact "${CLAUDE_KISS_AUTOCOMPACT:-500k}" "$@"
+fi
+
+if [ "$user_setting_sources" -eq 0 ]; then
+  set -- --setting-sources "${CLAUDE_KISS_SETTING_SOURCES:-user}" "$@"
+fi
+if [ "$user_settings" -eq 0 ]; then
+  set -- --settings "$settings" "$@"
+fi
+if [ "$user_system_prompt" -eq 0 ]; then
+  set -- --system-prompt-file "$prompt" "$@"
+fi
+if [ "$user_tools" -eq 0 ]; then
+  set -- --tools "$tools" "$@"
+fi
+
+if [ "$load_compact_memory" -eq 1 ]; then
+  export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1
+  set -- --add-dir "$compact_memory" "$@"
+  set -- --disallowedTools "Read(/$compact_memory/**)" "Edit(/$compact_memory/**)" "$@"
+fi
+
+if [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" = "1" ]; then
+  set -- --disable-slash-commands "$@"
+fi
+
+if [ "${CLAUDE_KISS_MCP:-0}" != "1" ]; then
+  set -- --strict-mcp-config "$@"
+  if [ "$has_mcp_config" -eq 0 ]; then
+    set -- --mcp-config '{"mcpServers":{}}' "$@"
+  fi
+fi
+
+if [ "${CLAUDE_KISS_DRY_RUN:-0}" = "1" ]; then
+  printf 'command:'
+  for argument in "$@"; do printf ' [%s]' "$argument"; done
+  printf '\nprompt: %s\nsettings: %s\n' "$prompt" "$settings"
+  printf 'compaction: %s\n' "$compact_profile"
+  printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
+  printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
+  if [ "$load_compact_memory" -eq 1 ]; then
+    printf 'compact memory: %s/CLAUDE.md\n' "$compact_memory"
+  else
+    printf 'compact memory: disabled\n'
+  fi
+  exit 0
+fi
+
+exec "$claude_bin" "$@"
