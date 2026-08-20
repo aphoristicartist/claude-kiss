@@ -20,7 +20,8 @@ Options:
   --uninstall       Remove only files installed by this script
   -h, --help        Show help
 
-The installer does not modify ~/.claude, ~/.claude.json, or the normal `claude` command.
+The installer installs claude-kiss and claude-kiss-profile. It does not modify
+~/.claude, ~/.claude.json, or the normal `claude` command.
 When run remotely, set CLAUDE_KISS_REPO or use the project's documented install URL.
 EOF
 }
@@ -70,13 +71,15 @@ if [ "$mode" = uninstall ]; then
     printf 'Refusing unsafe uninstall paths: prefix=%s data_dir=%s\n' "$prefix" "$data_dir" >&2
     exit 2
   fi
-  [ -f "$prefix/bin/claude-kiss" ] || [ -d "$data_dir" ] || {
+  [ -f "$prefix/bin/claude-kiss" ] || [ -f "$prefix/bin/claude-kiss-profile" ] || [ -d "$data_dir" ] || {
     printf 'No claude-kiss installation found under the requested paths.\n'
     exit 0
   }
   [ -f "$prefix/bin/claude-kiss" ] && rm -f "$prefix/bin/claude-kiss"
+  [ -f "$prefix/bin/claude-kiss-profile" ] && rm -f "$prefix/bin/claude-kiss-profile"
   [ -d "$data_dir" ] && rm -rf "$data_dir"
-  printf 'Removed %s/bin/claude-kiss\nRemoved %s\n' "$prefix" "$data_dir"
+  printf 'Removed %s/bin/claude-kiss\n' "$prefix"
+  printf 'Removed %s/bin/claude-kiss-profile\nRemoved %s\n' "$prefix" "$data_dir"
   printf 'The default Claude Code configuration was not changed.\n'
   exit 0
 fi
@@ -111,7 +114,7 @@ claude --strict-mcp-config --disable-slash-commands --version >/dev/null 2>&1 ||
 
 if [ ! -f "$source_dir/prompt/claude-kiss.md" ] || [ ! -f "$source_dir/config/settings.json" ]; then
   repository=${CLAUDE_KISS_REPO:-https://github.com/aphoristicartist/claude-kiss}
-  release_version=${CLAUDE_KISS_VERSION:-0.2.2}
+  release_version=${CLAUDE_KISS_VERSION:-0.3.0}
   case "$repository" in
     *.git) repository=${repository%.git} ;;
   esac
@@ -132,6 +135,7 @@ fi
 [ -f "$source_dir/prompt/claude-kiss.md" ] || { printf 'Missing prompt/claude-kiss.md\n' >&2; exit 1; }
 [ -f "$source_dir/config/settings.json" ] || { printf 'Missing config/settings.json\n' >&2; exit 1; }
 [ -f "$source_dir/memory/CLAUDE.md" ] || { printf 'Missing memory/CLAUDE.md\n' >&2; exit 1; }
+[ -f "$source_dir/bin/claude-kiss-profile" ] || { printf 'Missing bin/claude-kiss-profile\n' >&2; exit 1; }
 
 umask 022
 mkdir -p "$prefix/bin" "$data_dir/prompt" "$data_dir/config" "$data_dir/memory"
@@ -141,7 +145,9 @@ cp "$source_dir/prompt/claude-kiss.md" "$temporary/claude-kiss.md"
 cp "$source_dir/config/settings.json" "$temporary/settings.json"
 cp "$source_dir/memory/CLAUDE.md" "$temporary/compact-CLAUDE.md"
 sed "s|__CLAUDE_KISS_DEFAULT_HOME__|$data_dir|g" "$source_dir/bin/claude-kiss" > "$temporary/claude-kiss"
+cp "$source_dir/bin/claude-kiss-profile" "$temporary/claude-kiss-profile"
 chmod 755 "$temporary/claude-kiss"
+chmod 755 "$temporary/claude-kiss-profile"
 
 # Keep each update atomic. Existing canonical assets are intentionally replaced;
 # use CLAUDE_KISS_PROMPT/CLAUDE_KISS_SETTINGS for persistent personal forks.
@@ -149,8 +155,10 @@ mv "$temporary/claude-kiss.md" "$data_dir/prompt/claude-kiss.md"
 mv "$temporary/settings.json" "$data_dir/config/settings.json"
 mv "$temporary/compact-CLAUDE.md" "$data_dir/memory/CLAUDE.md"
 mv "$temporary/claude-kiss" "$prefix/bin/claude-kiss"
+mv "$temporary/claude-kiss-profile" "$prefix/bin/claude-kiss-profile"
 
-printf 'Installed %s/bin/claude-kiss\nInstalled assets in %s\n' "$prefix" "$data_dir"
+printf 'Installed %s/bin/claude-kiss\n' "$prefix"
+printf 'Installed %s/bin/claude-kiss-profile\nInstalled assets in %s\n' "$prefix" "$data_dir"
 
 if [ "$modify_path" = true ]; then
   case ":$PATH:" in
@@ -162,4 +170,5 @@ if [ "$modify_path" = true ]; then
   esac
 fi
 
-printf '\nRun:\n  claude-kiss\nThe normal `claude` command remains unchanged.\n'
+printf '\nRun:\n  claude-kiss\nOr create a named tool profile:\n  claude-kiss-profile create work\n'
+printf 'The normal `claude` command remains unchanged.\n'

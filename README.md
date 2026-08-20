@@ -69,7 +69,7 @@ Install Claude Code and authenticate normally first.
 Install the tagged Claude KISS release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.2.2/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.3.0/install.sh | sh
 ```
 
 Check the installation and resulting Claude Code version:
@@ -103,7 +103,7 @@ claude-kiss
 
 Defaults:
 
-- executable: `~/.local/bin/claude-kiss`
+- executables: `~/.local/bin/claude-kiss` and `~/.local/bin/claude-kiss-profile`
 - assets: `~/.local/share/claude-kiss`
 
 Custom locations:
@@ -155,7 +155,7 @@ not a binary patch and not an API proxy. Claude Code can continue updating norma
 Optional capability is still available:
 
 ```sh
-# Keep the KISS prompt but restore Claude's full built-in tool set.
+# Use Claude's broader built-in tool selection; KISS product-surface disablements remain.
 CLAUDE_KISS_TOOLS=default claude-kiss
 
 # Add one tool without restoring everything.
@@ -171,6 +171,13 @@ CLAUDE_KISS_MCP=1 claude-kiss
 `Agent` is intentionally absent by default. When enabled, Claude Code still supplies its
 own subagent machinery and prompts. For strict behavior across subagent-heavy work,
 define custom agents explicitly or keep the lean default.
+
+For repeatable opt-ins, use a named profile instead of retyping the environment variable:
+
+```sh
+claude-kiss-profile create research lsp web-fetch web-search tool-search
+claude-kiss-profile research
+```
 
 ## Measured difference
 
@@ -192,6 +199,9 @@ python3 evals/run_evals.py --model opus --effort high --budget 1.0
 ```
 
 Current local paired run:
+
+Recorded with Claude KISS `v0.2.2`; the repository includes the harness so you can rerun
+it against the current release.
 
 | Metric | Regular Claude | Claude KISS | Relative change |
 |---|---:|---:|---:|
@@ -255,6 +265,70 @@ Authentication commands also work:
 claude-kiss auth login
 claude-kiss auth status
 ```
+
+### Named tool profiles
+
+`claude-kiss-profile` stores a named set of opt-in features and launches Claude KISS with
+the resulting built-in tool list. It is a reusable launch profile, not a Claude Code
+session ID. Normal session arguments still pass through.
+
+Create interactively:
+
+```sh
+claude-kiss-profile create work
+```
+
+Create without prompts:
+
+```sh
+claude-kiss-profile create research lsp web-fetch web-search tool-search
+claude-kiss-profile create agents agent tasks
+claude-kiss-profile create bare none
+```
+
+Launch, inspect, and remove profiles:
+
+```sh
+claude-kiss-profile research
+claude-kiss-profile research --model sonnet
+claude-kiss-profile list
+claude-kiss-profile show research
+claude-kiss-profile rm research
+```
+
+Available opt-in features:
+
+| Feature | Added tools |
+|---|---|
+| `lsp` | `LSP`; requires a configured Claude Code language-server plugin |
+| `agent` | `Agent`, `TaskStop` |
+| `tasks` | `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop` |
+| `skill` | `Skill`; bundled skills remain disabled |
+| `web-fetch` | `WebFetch` |
+| `web-search` | `WebSearch` |
+| `worktree` | `EnterWorktree`, `ExitWorktree` |
+| `mcp-resources` | `ListMcpResourcesTool`, `ReadMcpResourceTool` |
+| `tool-search` | `ToolSearch` |
+| `none` | No optional tools |
+
+The six core tools are always included. Profiles never enable normal MCP discovery. To
+use an MCP server, pass its config explicitly:
+
+```sh
+claude-kiss-profile research --mcp-config ./mcp.json
+```
+
+`Agent` is accepted in the tool list and initializes as Claude Code's internal `Task`
+tool. Excluding web tools does not sandbox `Bash`; network isolation requires Claude
+Code's sandbox and permission controls.
+
+Profiles are stored under:
+
+```text
+~/.local/state/claude-kiss/profiles
+```
+
+Use `CLAUDE_KISS_PROFILES_DIR` to choose another directory.
 
 ### Common controls
 
@@ -383,6 +457,8 @@ Claude KISS is deliberately conservative:
 - Its installer can be reviewed before use.
 - Its tests do not make model requests.
 - It does not remove optional capability permanently; tools and MCP have explicit overrides.
+- It does not provide OS-level sandboxing; permission rules and Claude Code sandboxing
+  still govern shell and network access.
 
 Claude KISS cannot fix provider incidents, model refusals, account limits, or every model
 behavior. It changes the controllable launcher, prompt, tool surface, settings, and
@@ -459,7 +535,7 @@ The compact policy follows Codex's handoff-summary shape—progress and decision
 constraints and preferences, concrete next steps, and critical references/data—while
 omitting generic prompt boilerplate. Claude-specific tool names, permission behavior,
 safety rules, verification workflow, and KISS operating policy were rewritten for Claude
-Code. Codex's Apache-2.0 license and source notice are retained in `LICENSE` and `NOTICE`.
+Code. The reviewed Codex source is acknowledged in `NOTICE`.
 
 ## Compatibility
 
@@ -524,7 +600,7 @@ Breaking changes and new mandatory dependencies need a strong reason.
 
 ## Project status
 
-Current release: `v0.2.2`.
+Current release: `v0.3.0`.
 
 Claude KISS is a working, deliberately small launcher. Its interfaces depend on Claude
 Code CLI flags, so compatibility checks are built into installation and tests. The design
@@ -532,7 +608,7 @@ goal is fewer moving parts, not another framework to maintain.
 
 ## License
 
-Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+MIT License. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
 Claude KISS prompt guidance is original to this project, but its concise coding-agent
 structure was informed by prompts in OpenAI's Apache-2.0 Codex CLI. OpenAI does not
