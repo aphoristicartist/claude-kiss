@@ -1,74 +1,100 @@
 # Claude KISS
 
-Claude KISS is a builder-focused launcher for Claude Code. It keeps the useful execution
-harness, replaces the vendor-heavy default prompt with concise user-first instructions,
-and removes the tool, skill, connector, attribution, and telemetry surface that most
-developers do not ask for. The normal `claude` command stays untouched.
+**Claude Code configured for builders, not for vendor product-surface goals.**
+
+Claude KISS gives Claude Code a second launcher with concise user-first defaults: answer
+the actual request, make the smallest complete robust change, run meaningful checks,
+preserve the user's repository, and stop. It keeps Claude Code's useful execution harness,
+but replaces its large default prompt and broad tool/skill/connector surface. It also
+gives you explicit control over long-horizon context compaction.
 
 ```sh
 claude-kiss
 ```
 
-## Problem
+Your normal `claude` command remains untouched, so you can use both launchers side by side.
 
-Claude Code is a strong coding harness, but its default launch configuration is optimized
-for Anthropic's broad product surface rather than for an individual builder working in a
-real repository. That produces avoidable overhead:
+## Why builders want this
 
-- a large vendor system prompt and bundled skill catalog before the user's task begins;
-- extra agent, workflow, connector, remote-control, artifact, and MCP surface;
-- verbose narration, padded explanations, scope creep, and unrequested artifacts;
-- quality loss when “concise” is implemented as lazy shortcuts instead of small complete fixes;
-- long-horizon drift after compaction or a resumed session;
-- vendor attribution, feedback prompts, auto-updates, and nonessential traffic.
+Claude Code already has strong file, shell, search, and edit machinery. The frustration is
+what comes with it before your task starts:
 
-Developers generally want the opposite defaults: inspect the relevant code, make the
-smallest complete robust change, test it meaningfully, preserve the worktree, and report
-the result briefly.
+- a large vendor system prompt and bundled skill catalog;
+- broad agent, workflow, connector, remote-control, artifact, and MCP surfaces;
+- long narrated replies when you asked for a result;
+- narrow fixes that expand into projects, comments, plans, and reports you did not request;
+- “concise” behavior implemented as lazy shortcuts rather than complete root-cause fixes;
+- lost context and drifted objectives after compaction or a resumed session;
+- commit/PR attribution, feedback prompts, auto-updates, telemetry, and other nonessential
+  traffic that is not part of your coding task.
 
-## Solution
+Claude KISS reverses the defaults:
 
-Claude KISS provides those defaults as a separate command:
+| Builder need | Claude KISS default |
+|---|---|
+| “Answer my question” | Treat it as a question. Do not edit the repository unless asked. |
+| “Fix this bug” | Inspect the relevant code, fix the root cause, and avoid speculative scope. |
+| “Keep it concise” | Short plain answers, without weakening tests or shipping stubs. |
+| “Don't touch unrelated work” | Preserve dirty worktrees and never revert unrelated user changes. |
+| “Finish a long task” | Preserve objective, acceptance criteria, decisions, diagnostics, and next steps. |
+| “Let me choose” | Keep `/model`, repository memory, and explicit MCP/tool overrides. |
 
-- a concise replacement system prompt optimized for users, not product placement;
-- a deliberately small built-in tool surface;
-- no bundled skills or workflows by default;
-- explicit MCP opt-in rather than broad discovery;
-- user settings and `/model` preserved;
-- project `CLAUDE.md`/`AGENTS.md` memory preserved;
-- root-cause fixes and focused regression coverage;
-- long-horizon state continuity through compaction;
-- no commit/PR attribution and supported opt-outs for telemetry, error reporting, feedback
-  prompts, terminal-title generation, auto-memory, and auto-updates.
+This is not a stripped-down toy mode. KISS means the smallest complete robust solution,
+not minimal effort.
 
-The ordinary `claude` command, `~/.claude`, and `~/.claude.json` remain unchanged. A
-developer can use both commands side by side and compare them directly.
+## Contents
 
-Claude KISS is for builders and developers who want maximum practical output from Claude
-Code with minimal vendor noise. It is not a binary patch, API proxy, or attempt to hide
-every Claude Code capability; optional tools and MCP remain available through documented
-overrides.
+- [Why builders want this](#why-builders-want-this)
+- [Quick start](#quick-start)
+- [What changes immediately](#what-changes-immediately)
+- [Measured difference](#measured-difference)
+- [Concision without lazy work](#concision-without-lazy-work)
+- [Daily use](#daily-use)
+- [Context compaction](#context-compaction)
+- [Trust and safety](#trust-and-safety)
+- [Why this design](#why-this-design)
+- [August 2026 Opus 5 behavior audit](#august-2026-opus-5-behavior-audit)
+- [What Claude KISS takes from Codex](#what-claude-kiss-takes-from-codex)
+- [Compatibility](#compatibility)
+- [Verification](#verification)
+- [Support](#support)
+- [Contributing](#contributing)
+- [Project status](#project-status)
+- [License](#license)
 
-## What it changes
+## Quick start
 
-The default profile:
+Install Claude Code and authenticate normally first.
 
-- replaces Claude Code's vendor system prompt through the official `--system-prompt-file` flag;
-- exposes only `Bash`, `Glob`, `Grep`, `Read`, `Edit`, and `Write`;
-- disables bundled skills/workflows, remote control, artifacts, agent view, connectors, and MCP discovery;
-- loads user settings so `/model` and its saved default work, while skipping project/local settings;
-- keeps project `CLAUDE.md`/`AGENTS.md` instructions by default;
-- uses a concise KISS compaction policy while retaining Claude's tuned automatic timing;
-- opts out of nonessential traffic, telemetry, error reporting, feedback prompts, terminal-title generation, auto-memory, and auto-updates;
-- removes Claude attribution from commits and pull requests;
-- leaves `~/.claude` and the ordinary `claude` command unmodified.
+Install the tagged Claude KISS release:
 
-The result is not a binary patch or API proxy. It uses supported per-invocation CLI behavior,
-so Claude Code can continue updating normally.
+```sh
+curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.2.2/install.sh | sh
+```
 
-## Install
+Check the installation and resulting Claude Code version:
 
-From a checkout:
+```sh
+claude-kiss doctor
+```
+
+Start a session:
+
+```sh
+claude-kiss
+```
+
+That is the normal workflow. You can still run ordinary Claude:
+
+```sh
+claude
+```
+
+Claude KISS does not replace it, patch it, or rewrite your existing Claude configuration.
+
+### Install and uninstall locally
+
+From a repository checkout:
 
 ```sh
 ./install.sh
@@ -87,35 +113,71 @@ Custom locations:
 ~/.opt/bin/claude-kiss
 ```
 
-Remove it:
+Remove Claude KISS:
 
 ```sh
 ./install.sh --uninstall
 ```
 
-Install the tagged release:
+The standalone installer downloads the matching tagged source archive when its assets are
+not already present. It does not use `sudo`.
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.2.2/install.sh | sh
-```
-
-The standalone installer detects that its assets are absent and downloads the matching
-tagged source archive. It does not use `sudo` or modify the default Claude configuration.
-For a private/different repository:
+For a private or mirrored repository:
 
 ```sh
 curl -fsSL .../install.sh | CLAUDE_KISS_REPO=https://example.invalid/repo sh
 ```
 
-Review `install.sh` before piping it into a shell. Prefer a reviewed tag over a moving
-branch for managed machines.
+Review `install.sh` before piping it to a shell. On a managed machine, prefer a reviewed
+tag rather than a moving branch.
 
-## Evaluations
+## What changes immediately
 
-The repository includes a paired harness that compares ordinary `claude` and `claude-kiss`
-on identical temporary fixtures. It measures task correctness, file scope, created files,
-added comments, hidden anti-hardcoding checks, response size, reported token usage and
-cost, agent turns, and wall time.
+| Area | Ordinary Claude Code launch | Claude KISS launch |
+|---|---|---|
+| Main system prompt | Claude Code's vendor default | Concise builder-first replacement prompt |
+| Core built-in tools | Claude Code's broader default tool set | `Bash`, `Glob`, `Grep`, `Read`, `Edit`, `Write` |
+| Bundled skills/workflows | Available by default | Disabled by default |
+| Remote control, artifacts, agent view, connectors | Available through the normal surface | Disabled by default |
+| MCP | Normal discovery | Strict mode; explicit config required |
+| Model selection | Normal Claude Code behavior | Kept, including `/model` and saved user model choice |
+| User settings | Loaded | Loaded, so authentication and model choice work |
+| Project/local settings | Loaded | Skipped by default to avoid surprise harness changes |
+| Repository memory | Normal `CLAUDE.md`/`AGENTS.md` behavior | Project-root `CLAUDE.md`/`AGENTS.md` kept |
+| Attribution | Claude attribution on commits/PRs | Removed |
+| Nonessential traffic | Vendor defaults | Supported opt-outs for telemetry, error reporting, feedback, terminal-title generation, auto-memory, and auto-updates |
+| Compaction | Normal behavior | KISS handoff policy plus five selectable timing profiles |
+| Existing installation | N/A | Ordinary `claude`, `~/.claude`, and `~/.claude.json` remain unchanged |
+
+Claude KISS uses supported per-invocation CLI flags and a temporary settings file. It is
+not a binary patch and not an API proxy. Claude Code can continue updating normally.
+
+Optional capability is still available:
+
+```sh
+# Keep the KISS prompt but restore Claude's full built-in tool set.
+CLAUDE_KISS_TOOLS=default claude-kiss
+
+# Add one tool without restoring everything.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,Agent claude-kiss
+
+# Use one explicit MCP config; unrelated discovered servers stay hidden.
+claude-kiss --mcp-config ./mcp.json
+
+# Restore normal MCP discovery for a workflow that really needs it.
+CLAUDE_KISS_MCP=1 claude-kiss
+```
+
+`Agent` is intentionally absent by default. When enabled, Claude Code still supplies its
+own subagent machinery and prompts. For strict behavior across subagent-heavy work,
+define custom agents explicitly or keep the lean default.
+
+## Measured difference
+
+The repository includes a paired evaluator, not a marketing chart. It runs ordinary
+`claude` and `claude-kiss` against identical temporary fixtures and measures task
+correctness, file scope, created files, added comments, hidden anti-hardcoding checks,
+response size, reported token usage and cost, agent turns, and wall time.
 
 Run the default four-task smoke benchmark:
 
@@ -123,64 +185,237 @@ Run the default four-task smoke benchmark:
 python3 evals/run_evals.py
 ```
 
-Model requests can cost real money. Set an explicit model, effort level, and per-call
-budget when needed:
+Model requests can cost real money. Control the model, effort, and budget when needed:
 
 ```sh
 python3 evals/run_evals.py --model opus --effort high --budget 1.0
 ```
 
-The current local run is recorded in [`evals/RESULTS.md`](evals/RESULTS.md). Both launchers
-passed all four checks and changed the same expected files. Claude KISS averaged 56.6%
-fewer result words, 61.0% lower reported API cost, 49.5% fewer cache-read tokens, and
-29.1% lower wall time. It also used more agent turns in that run, so the result is not a
-claim that KISS always takes fewer actions.
+Current local paired run:
+
+| Metric | Regular Claude | Claude KISS | Relative change |
+|---|---:|---:|---:|
+| Tasks passed | 4/4 | 4/4 | — |
+| Mean result words | 81.2 | 35.2 | −56.6% |
+| Mean cache-read tokens | 121,458.8 | 61,363.8 | −49.5% |
+| Mean reported cost | $0.2153 | $0.0840 | −61.0% |
+| Mean wall time | 27.60s | 19.56s | −29.1% |
+| Mean agent turns | 5.0 | 8.8 | +75.0% |
+
+Read the complete methodology, task results, and caveats in
+[`evals/RESULTS.md`](evals/RESULTS.md).
+
+Be precise about what this proves:
+
+- It is one local paired run, not statistical proof.
+- Both launchers passed all four tasks and changed the same expected files.
+- No model override was used; both primarily used Opus 5, while regular Claude also
+  reported one auxiliary Haiku call.
+- Claude KISS used more turns, and one task produced a longer KISS response.
+- The evaluator is included so you can rerun and challenge it on your own tasks.
+
+## Concision without lazy work
+
+The prompt's quality bar is deliberately strict:
+
+- fix the root cause at the appropriate layer;
+- keep the change small, coherent, and reviewable;
+- do not introduce speculative complexity or unrelated “improvements”;
+- preserve existing comment density rather than adding filler;
+- avoid unrequested plans, comments, reports, and artifacts;
+- finish the requested work before yielding;
+- protect unrelated dirty-worktree changes;
+- choose focused tests, then broaden only when uncertainty or blast radius justifies it.
+
+For changed behavior, Claude must add or update focused coverage for required behavior,
+important edge cases, and regressions when equivalent tests do not already exist.
+
+It must not present production-path stubs, TODOs, hardcoded results, swallowed errors,
+lazy workarounds, or other temporary hacks as finished work unless the user explicitly
+asked for temporary behavior. It must never weaken assertions or use mocks to hide the
+behavior under test.
+
+## Daily use
+
+Normal Claude Code arguments pass through:
+
+```sh
+claude-kiss -c
+claude-kiss -p "fix the failing test"
+claude-kiss --model sonnet
+claude-kiss --add-dir ../shared
+```
+
+`/model` remains available, and user settings are loaded so a saved model choice persists
+across Claude KISS launches.
+
+Authentication commands also work:
+
+```sh
+claude-kiss auth login
+claude-kiss auth status
+```
+
+### Common controls
+
+```sh
+# Strictly isolated settings; /model selections will not persist to KISS launches.
+CLAUDE_KISS_SETTING_SOURCES="" claude-kiss
+
+# Disable every skill and slash command, including built-ins such as /model.
+CLAUDE_KISS_DISABLE_COMMANDS=1 claude-kiss
+
+# Ignore all CLAUDE.md/AGENTS.md memory files.
+CLAUDE_KISS_CLAUDE_MD=0 claude-kiss
+
+# Use a personal prompt fork persistently.
+CLAUDE_KISS_PROMPT=~/prompts/my-kiss.md claude-kiss
+
+# Use a different settings file persistently.
+CLAUDE_KISS_SETTINGS=~/settings/claude-kiss.json claude-kiss
+
+# Preview the exact Claude command without calling the model.
+CLAUDE_KISS_DRY_RUN=1 claude-kiss
+```
+
+Explicit `--setting-sources`, `--settings`, `--system-prompt`,
+`--system-prompt-file`, or `--tools` arguments replace the wrapper's corresponding
+default rather than competing with it.
+
+### Complete isolation
+
+By default, Claude KISS uses per-invocation isolation and shares your existing Claude
+authentication. To place sessions, plugins, and config in a separate directory as well:
+
+```sh
+CLAUDE_KISS_ISOLATED=1 claude-kiss
+CLAUDE_KISS_ISOLATED=1 claude-kiss auth login
+```
+
+This uses `~/.local/state/claude-kiss/config` or `CLAUDE_KISS_CONFIG_DIR`. It may require
+a one-time separate login.
+
+## Context compaction
+
+Long-horizon coding fails when compaction saves a generic summary but loses the objective,
+acceptance criteria, current diff, failed checks, and next steps. Claude KISS supplies a
+small, editable handoff policy while leaving timing control to you.
+
+Claude Code's supported customization points are:
+
+- automatic compaction on/off;
+- automatic compaction window;
+- `/compact [instructions]` for a focused manual summary;
+- a `## Compact Instructions` section in `CLAUDE.md`;
+- awareness that system prompts and root `CLAUDE.md` files survive, while path-scoped
+  rules and nested memory must be reloaded later.
+
+### Profiles
+
+| Profile | Default? | Timing | Compact instructions |
+|---|---:|---|---|
+| `kiss` | yes | Claude's model-tuned automatic timing | KISS handoff policy |
+| `plain` | no | Claude's model-tuned automatic timing | Claude's normal behavior |
+| `early` | no | Compact at `500k` by default | KISS handoff policy |
+| `manual` | no | Disable automatic compaction; keep `/compact` | KISS handoff policy |
+| `off` | no | Disable automatic and manual compaction | None |
+
+```sh
+# Default: model-tuned timing plus the KISS handoff policy.
+claude-kiss
+
+# Use Claude's normal compaction behavior without extra KISS memory.
+CLAUDE_KISS_COMPACT=plain claude-kiss
+
+# Compact earlier. The value uses Claude Code's --autocompact syntax.
+CLAUDE_KISS_COMPACT=early claude-kiss
+CLAUDE_KISS_COMPACT=early CLAUDE_KISS_AUTOCOMPACT=400k claude-kiss
+
+# Keep manual control.
+CLAUDE_KISS_COMPACT=manual claude-kiss
+
+# Disable automatic and manual compaction.
+CLAUDE_KISS_COMPACT=off claude-kiss
+```
+
+The default policy is installed at:
+
+```text
+~/.local/share/claude-kiss/memory/CLAUDE.md
+```
+
+Edit that file to control exactly what summaries preserve. Claude Code loads it as an
+additional `CLAUDE.md`, so its official compaction path sees the policy. The wrapper denies
+its file tools access to the installation directory.
+
+Use a different policy directory:
+
+```sh
+CLAUDE_KISS_COMPACT_MEMORY=~/prompt-policies/kiss claude-kiss
+```
+
+Disable only the KISS compact memory:
+
+```sh
+CLAUDE_KISS_COMPACT_MEMORY=0 claude-kiss
+```
+
+For one focused manual summary:
+
+```text
+/compact preserve the API design decisions, current diff, failed tests, and next steps
+```
+
+Path-scoped `.claude/rules` and nested `CLAUDE.md` files do not survive compaction; Claude
+reloads them only after a matching file is read again. Put durable project rules in the
+project-root `CLAUDE.md` without `paths:` frontmatter.
+
+## Trust and safety
+
+Claude KISS is deliberately conservative:
+
+- It uses supported Claude Code flags and settings.
+- It does not patch the Claude Code binary.
+- It does not run an API proxy or intercept your model traffic.
+- It does not modify ordinary `claude`, `~/.claude`, or `~/.claude.json`.
+- It does not use `sudo`.
+- It leaves Claude Code updating normally.
+- Its installer can be reviewed before use.
+- Its tests do not make model requests.
+- It does not remove optional capability permanently; tools and MCP have explicit overrides.
+
+Claude KISS cannot fix provider incidents, model refusals, account limits, or every model
+behavior. It changes the controllable launcher, prompt, tool surface, settings, and
+compaction behavior. Those are meaningful levers, not magic.
 
 ## Why this design
 
-Claude Code has several overlapping customization mechanisms:
+Claude Code has several customization mechanisms:
 
 - `--append-system-prompt` leaves the entire vendor prompt in place.
-- Custom output styles replace coding instructions, but are persistent state and still interact with output-style machinery.
-- Patching the native binary is brittle and disappears on every update.
-- Rewriting requests through an `ANTHROPIC_BASE_URL` proxy adds a runtime dependency and can break streaming, caching, authentication, and API evolution.
+- Output styles replace coding instructions, but are persistent state and still interact
+  with output-style machinery.
+- Patching the binary is brittle and disappears with every update.
+- An `ANTHROPIC_BASE_URL` proxy adds a runtime dependency and can break streaming, caching,
+  authentication, and API evolution.
 - `--system-prompt-file` is the supported way to replace the main prompt for one invocation.
 
-Claude KISS therefore combines `--system-prompt-file` with explicit invocation flags and a
-temporary settings file. `--setting-sources user` preserves the user's model choice and
-authentication without loading project/local settings. Bundled skills and workflows are
-removed through supported settings instead of `--disable-slash-commands`; that flag would
-also remove built-in commands such as `/model`.
+Claude KISS therefore combines `--system-prompt-file`, explicit invocation flags, and a
+temporary settings file. `--setting-sources user` preserves model choice and authentication
+without loading project/local settings. Bundled skills and workflows are removed through
+supported settings rather than `--disable-slash-commands`, which would also remove
+built-ins such as `/model`.
 
-Claude Code still sends the schemas for enabled tools. The lean default removes most tool
-schemas and all skill catalog overhead. `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` requests
-abbreviated tool descriptions as an additional supported reduction.
+Claude Code still sends schemas for enabled tools. The lean default removes most tool
+schemas and the skill catalog. `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` requests abbreviated
+tool descriptions as an additional supported reduction.
 
-## Quality posture
+## August 2026 Opus 5 behavior audit
 
-KISS means the smallest complete robust solution, not the least effort. Claude KISS
-requires root-cause fixes at the appropriate layer and explicitly rejects finished work
-containing production-path stubs, TODOs, hardcoded results, swallowed errors, lazy
-workarounds, or other temporary hacks unless the user asked for temporary behavior. Tests
-must not pass through weakened assertions or mocks that hide the behavior under test.
-
-For changed behavior, Claude adds or updates focused coverage for the required behavior,
-important edge cases, and regressions when equivalent tests do not already exist. It starts
-with the narrow applicable check and broadens only when uncertainty or blast radius
-justifies it.
-
-Long-horizon work keeps a compact internal state for the objective, acceptance criteria,
-decisions, changed files, diagnostics, and pending validation. After compaction or a
-resumed session, Claude reconstructs state from the handoff, repository instructions,
-worktree, and source before continuing. The default compaction policy preserves the same
-critical information.
-
-## Opus 5 behavior audit
-
-August 2026 discussions and Anthropic's own Opus 5 prompting guide repeatedly identify
-the same user-facing problems: long conversational replies, agentic narration, scope creep,
-verbose code comments, unrequested reports, repeated verification, and eager delegation.
-Claude KISS addresses the controllable harness and prompt side without weakening useful
+August 2026 discussions and Anthropic's own Opus 5 prompting guide repeatedly identify the
+same user-facing problems: long conversational replies, agentic narration, scope creep,
+verbose comments, unrequested reports, repeated verification, and eager delegation.
+Claude KISS addresses the controllable prompt and harness side without weakening useful
 validation:
 
 | Complaint pattern | Claude KISS response |
@@ -189,15 +424,11 @@ validation:
 | Narration of every read or command | One short preface, then updates only for findings, turns, or blockers |
 | Narrow requests becoming projects | Requested-scope rule, smallest coherent change, no speculative scaffolding |
 | Questions triggering edits | Questions request answers; repository edits require an action request |
-| Padded comments and reports | Preserve comment density; no unrequested comments, plans, or reports |
+| Padded comments and reports | Preserve comment density; no unrequested plans or reports |
 | Over-verification | One targeted check for deterministic results; broaden only on uncertainty |
-| Subagent and token blowouts | `Agent` is absent by default; optional use is explicitly constrained |
+| Subagent and token blowouts | `Agent` is absent by default; optional use is constrained |
 | Instruction drift | Supplied user/repository instructions override default habits |
 | Loss of backups or unrelated files | Dirty-worktree preservation and explicit recovery-point protection |
-
-This cannot repair provider incidents, model refusals, or other account/service problems.
-It also cannot make reasoning-effort changes reliably shorten visible output; explicit
-communication rules are required for that. Keep `/model` available for model selection.
 
 Sources:
 
@@ -212,186 +443,35 @@ Sources:
 
 ## What Claude KISS takes from Codex
 
-Claude KISS does not paste Codex's model-specific prompt into Claude. It borrows the parts
-that are model- and harness-independent:
+Claude KISS does not paste Codex's model-specific prompt into Claude. It borrows parts that
+are model- and harness-independent:
 
-- Concise, direct, friendly communication.
-- Finish the user's actual task before yielding.
-- Prefer root-cause fixes over surface patches.
-- Keep existing-workspace changes minimal and focused.
-- Respect dirty worktrees and never revert unrelated user changes.
-- Avoid speculative complexity, unrelated fixes, and unnecessary comments.
-- Validate with targeted tests first, then broaden as needed.
-- Report outcomes and file references briefly.
+- concise, direct, friendly communication;
+- finish the user's actual task before yielding;
+- prefer root-cause fixes over surface patches;
+- keep existing-workspace changes minimal and focused;
+- respect dirty worktrees and never revert unrelated user changes;
+- avoid speculative complexity, unrelated fixes, and unnecessary comments;
+- validate with targeted tests first, then broaden as needed;
+- report outcomes and file references briefly.
 
 The compact policy follows Codex's handoff-summary shape—progress and decisions,
 constraints and preferences, concrete next steps, and critical references/data—while
-omitting Codex's generic prompt boilerplate. Claude-specific tool names, permission
-behavior, safety rules, verification workflow, and KISS operating policy were rewritten for
-Claude Code. Codex's Apache-2.0 license and source notice are retained in `LICENSE` and
-`NOTICE`.
-
-## Context compaction
-
-Claude Code does not officially expose a Codex-style `compact_prompt` replacement. Its
-supported customization points are:
-
-- automatic compaction on/off;
-- the automatic compaction window;
-- `/compact [instructions]` for a manual focused summary;
-- a `## Compact Instructions` section in `CLAUDE.md`;
-- awareness that system prompts and root `CLAUDE.md` files survive, while path-scoped
-  rules and nested memory must be reloaded later.
-
-Claude KISS wraps those controls in five profiles:
-
-| Profile | Default? | Timing | Compact instructions |
-|---|---:|---|---|
-| `kiss` | yes | Claude's model-tuned automatic timing | KISS handoff policy |
-| `plain` | no | Claude's model-tuned automatic timing | Claude's normal behavior |
-| `early` | no | Compact at `500k` by default | KISS handoff policy |
-| `manual` | no | Disable automatic compaction; keep `/compact` | KISS handoff policy |
-| `off` | no | Disable automatic and manual compaction | None |
-
-Examples:
-
-```sh
-# Default: tuned automatic timing plus the KISS handoff policy.
-claude-kiss
-
-# Use Claude's normal compaction behavior and no extra KISS memory.
-CLAUDE_KISS_COMPACT=plain claude-kiss
-
-# Compact earlier. The value uses Claude Code's --autocompact syntax.
-CLAUDE_KISS_COMPACT=early claude-kiss
-CLAUDE_KISS_COMPACT=early CLAUDE_KISS_AUTOCOMPACT=400k claude-kiss
-
-# Keep manual control.
-CLAUDE_KISS_COMPACT=manual claude-kiss
-
-# Disable both automatic and manual compaction.
-CLAUDE_KISS_COMPACT=off claude-kiss
-```
-
-The KISS policy is installed at:
-
-```text
-~/.local/share/claude-kiss/memory/CLAUDE.md
-```
-
-Edit that file to choose exactly what your summaries preserve. It is loaded as an
-additional `CLAUDE.md`, so Claude Code's official compaction path sees it. The wrapper
-also denies its file tools access to that installation directory.
-
-Use a different policy directory with:
-
-```sh
-CLAUDE_KISS_COMPACT_MEMORY=~/prompt-policies/kiss claude-kiss
-```
-
-Disable only the KISS compact memory with:
-
-```sh
-CLAUDE_KISS_COMPACT_MEMORY=0 claude-kiss
-```
-
-For one focused manual summary, prefer:
-
-```text
-/compact preserve the API design decisions, current diff, failed tests, and next steps
-```
-
-Path-scoped `.claude/rules` and nested `CLAUDE.md` files do not survive compaction;
-Claude reloads them only after a matching file is read again. Put durable rules in the
-project-root `CLAUDE.md` without `paths:` frontmatter.
-
-## Daily use
-
-Normal Claude Code arguments are passed through:
-
-```sh
-claude-kiss -c
-claude-kiss -p "fix the failing test"
-claude-kiss --model sonnet
-claude-kiss --add-dir ../shared
-```
-
-Explicit `--setting-sources`, `--settings`, `--system-prompt`, `--system-prompt-file`,
-or `--tools` arguments replace the wrapper's corresponding default rather than competing
-with it.
-
-Authentication commands are passed through without session flags:
-
-```sh
-claude-kiss auth login
-claude-kiss auth status
-```
-
-Check the installation:
-
-```sh
-claude-kiss doctor
-```
-
-### Profiles and overrides
-
-```sh
-# Keep the KISS prompt but restore Claude's full built-in tool set.
-CLAUDE_KISS_TOOLS=default claude-kiss
-
-# Add a tool without restoring everything.
-CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,Agent claude-kiss
-
-# Explicit MCP config only; unrelated MCP servers stay hidden.
-claude-kiss --mcp-config ./mcp.json
-
-# Restore normal MCP discovery when you really need it.
-CLAUDE_KISS_MCP=1 claude-kiss
-
-# Strictly isolated settings; /model selections will not persist to KISS launches.
-CLAUDE_KISS_SETTING_SOURCES="" claude-kiss
-
-# Disable every skill and slash command, including built-ins such as /model.
-CLAUDE_KISS_DISABLE_COMMANDS=1 claude-kiss
-
-# Ignore all CLAUDE.md/AGENTS.md memory files.
-CLAUDE_KISS_CLAUDE_MD=0 claude-kiss
-
-# Use a personal prompt fork persistently.
-CLAUDE_KISS_PROMPT=~/prompts/my-kiss.md claude-kiss
-
-# Preview exact wrapper arguments without calling the model.
-CLAUDE_KISS_DRY_RUN=1 claude-kiss
-```
-
-`Agent` is intentionally absent by default. If enabled, Claude's separate subagent prompts
-still use Claude Code's own subagent machinery. For strict behavior across a subagent-heavy
-workflow, define custom agents explicitly or keep the lean default.
-
-### Complete isolation
-
-By default, Claude KISS uses per-invocation isolation and shares Claude authentication. To
-put sessions, plugins, and config under a separate directory as well:
-
-```sh
-CLAUDE_KISS_ISOLATED=1 claude-kiss
-CLAUDE_KISS_ISOLATED=1 claude-kiss auth login
-```
-
-This uses `~/.local/state/claude-kiss/config` or `CLAUDE_KISS_CONFIG_DIR`. It may require a
-separate one-time login.
+omitting generic prompt boilerplate. Claude-specific tool names, permission behavior,
+safety rules, verification workflow, and KISS operating policy were rewritten for Claude
+Code. Codex's Apache-2.0 license and source notice are retained in `LICENSE` and `NOTICE`.
 
 ## Compatibility
 
-Developed and tested with Claude Code `2.1.236` on macOS. The script targets POSIX shells
-on macOS, Linux, and WSL; native Windows PowerShell support is not included. The installer
-checks required CLI flags at runtime. The `--system-prompt-file` behavior documented for
-current Claude Code replaces the
-entire default main prompt, including its general tool and safety instructions. Tool schemas
-remain available, and Claude KISS supplies its own concise safety and verification rules.
+Developed and tested with Claude Code `2.1.237` on macOS. The script targets POSIX shells
+on macOS, Linux, and WSL; native Windows PowerShell is not supported.
 
-The concise prompt structure is informed by OpenAI's Apache-2.0 Codex CLI prompts; see
-`NOTICE`. Claude KISS is independent and not endorsed by Anthropic or OpenAI.
+The installer checks required CLI flags at runtime. `--system-prompt-file` replaces the
+entire default main prompt, including its general tool and safety instructions. Tool
+schemas remain available, and Claude KISS supplies its own concise safety and verification
+rules.
+
+Claude KISS is independent and not endorsed by Anthropic or OpenAI.
 
 ## Verification
 
@@ -401,5 +481,60 @@ From a checkout:
 ./tests/test.sh
 ```
 
-The tests validate settings, dry-run arguments, installation, doctor output, and uninstall
-behavior without making a model request.
+The tests validate settings, prompt quality markers, dry-run arguments, installation,
+doctor output, and uninstall behavior without making a model request.
+
+```sh
+git diff --check
+```
+
+Use this before submitting changes to catch trailing whitespace and patch formatting
+problems.
+
+## Support
+
+Open a [GitHub issue](https://github.com/aphoristicartist/claude-kiss/issues) for:
+
+- installation problems;
+- compatibility failures with a current Claude Code version;
+- behavior that claims to be KISS but produces lazy or incomplete work;
+- focused proposals for new controls.
+
+Include the output of:
+
+```sh
+claude-kiss doctor
+claude-kiss --version
+```
+
+Do not post credentials or private repository content.
+
+## Contributing
+
+Small, complete, tested changes are preferred.
+
+1. Open or reference an issue first.
+2. Keep behavior and documentation changes focused.
+3. Preserve the no-model-call test property.
+4. Run `./tests/test.sh` and `git diff --check`.
+5. Submit a pull request with the reason for the change and evidence.
+
+Compatibility changes should use supported Claude Code interfaces wherever possible.
+Breaking changes and new mandatory dependencies need a strong reason.
+
+## Project status
+
+Current release: `v0.2.2`.
+
+Claude KISS is a working, deliberately small launcher. Its interfaces depend on Claude
+Code CLI flags, so compatibility checks are built into installation and tests. The design
+goal is fewer moving parts, not another framework to maintain.
+
+## License
+
+Apache License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+Claude KISS prompt guidance is original to this project, but its concise coding-agent
+structure was informed by prompts in OpenAI's Apache-2.0 Codex CLI. OpenAI does not
+sponsor or endorse Claude KISS. "Claude", "Claude Code", "Codex", and "OpenAI" are
+trademarks of their respective owners.
