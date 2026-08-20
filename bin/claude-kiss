@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-version="0.3.0"
+version="0.4.0"
 claude_bin="${CLAUDE_BIN:-claude}"
 default_home=__CLAUDE_KISS_DEFAULT_HOME__
 home="${CLAUDE_KISS_HOME:-$default_home}"
@@ -33,7 +33,6 @@ Usage:
   claude-kiss doctor               Check the local installation
   claude-kiss --help               Show this help
   claude-kiss --version            Show wrapper and Claude versions
-  claude-kiss-profile NAME         Launch a named tool opt-in profile
 
 Useful overrides:
   CLAUDE_BIN=path                  Claude executable (default: claude)
@@ -41,7 +40,6 @@ Useful overrides:
   CLAUDE_KISS_PROMPT=path          Replacement system-prompt file
   CLAUDE_KISS_SETTINGS=path        Replacement settings file
   CLAUDE_KISS_TOOLS=list           Built-in tool list, or 'default'
-  CLAUDE_KISS_PROFILES_DIR=path    Named profile directory for claude-kiss-profile
   CLAUDE_KISS_SETTING_SOURCES=list Settings scopes (default: user)
   CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
   CLAUDE_KISS_MCP=1                Allow normal MCP discovery

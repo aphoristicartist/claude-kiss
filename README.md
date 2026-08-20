@@ -69,7 +69,7 @@ Install Claude Code and authenticate normally first.
 Install the tagged Claude KISS release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.3.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.4.0/install.sh | sh
 ```
 
 Check the installation and resulting Claude Code version:
@@ -103,7 +103,7 @@ claude-kiss
 
 Defaults:
 
-- executables: `~/.local/bin/claude-kiss` and `~/.local/bin/claude-kiss-profile`
+- executable: `~/.local/bin/claude-kiss`
 - assets: `~/.local/share/claude-kiss`
 
 Custom locations:
@@ -172,11 +172,10 @@ CLAUDE_KISS_MCP=1 claude-kiss
 own subagent machinery and prompts. For strict behavior across subagent-heavy work,
 define custom agents explicitly or keep the lean default.
 
-For repeatable opt-ins, use a named profile instead of retyping the environment variable:
+For repeatable combinations, define a shell alias in your own shell configuration:
 
 ```sh
-claude-kiss-profile create research lsp web-fetch web-search tool-search
-claude-kiss-profile research
+alias ck-research='CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch,ToolSearch claude-kiss'
 ```
 
 ## Measured difference
@@ -266,69 +265,50 @@ claude-kiss auth login
 claude-kiss auth status
 ```
 
-### Named tool profiles
+### Direct opt-ins
 
-`claude-kiss-profile` stores a named set of opt-in features and launches Claude KISS with
-the resulting built-in tool list. It is a reusable launch profile, not a Claude Code
-session ID. Normal session arguments still pass through.
-
-Create interactively:
+There is no second profile manager, state directory, or profile naming scheme. Use one
+environment variable when you need more capability:
 
 ```sh
-claude-kiss-profile create work
+# Local code intelligence.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,LSP claude-kiss
+
+# Explicit subagents and task control.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,Agent,TaskStop claude-kiss
+
+# Explicit task tracking.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,TaskCreate,TaskGet,TaskList,TaskUpdate,TaskStop claude-kiss
+
+# User-controlled skills; bundled skills remain disabled by settings.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,Skill claude-kiss
+
+# Web research.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch claude-kiss
+
+# Explicit worktree entry and exit.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,EnterWorktree,ExitWorktree claude-kiss
+
+# Explicit MCP resources.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,ListMcpResourcesTool,ReadMcpResourceTool claude-kiss
+
+# Explicit large MCP configurations.
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,ToolSearch claude-kiss
 ```
 
-Create without prompts:
+For a reusable name, put the assignment in your own shell alias or function. This keeps
+Claude KISS stateless and leaves naming to the shell you already use.
+
+Normal MCP discovery remains disabled. Use an explicit config:
 
 ```sh
-claude-kiss-profile create research lsp web-fetch web-search tool-search
-claude-kiss-profile create agents agent tasks
-claude-kiss-profile create bare none
-```
-
-Launch, inspect, and remove profiles:
-
-```sh
-claude-kiss-profile research
-claude-kiss-profile research --model sonnet
-claude-kiss-profile list
-claude-kiss-profile show research
-claude-kiss-profile rm research
-```
-
-Available opt-in features:
-
-| Feature | Added tools |
-|---|---|
-| `lsp` | `LSP`; requires a configured Claude Code language-server plugin |
-| `agent` | `Agent`, `TaskStop` |
-| `tasks` | `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop` |
-| `skill` | `Skill`; bundled skills remain disabled |
-| `web-fetch` | `WebFetch` |
-| `web-search` | `WebSearch` |
-| `worktree` | `EnterWorktree`, `ExitWorktree` |
-| `mcp-resources` | `ListMcpResourcesTool`, `ReadMcpResourceTool` |
-| `tool-search` | `ToolSearch` |
-| `none` | No optional tools |
-
-The six core tools are always included. Profiles never enable normal MCP discovery. To
-use an MCP server, pass its config explicitly:
-
-```sh
-claude-kiss-profile research --mcp-config ./mcp.json
+CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,ToolSearch \
+  claude-kiss --mcp-config ./mcp.json
 ```
 
 `Agent` is accepted in the tool list and initializes as Claude Code's internal `Task`
 tool. Excluding web tools does not sandbox `Bash`; network isolation requires Claude
 Code's sandbox and permission controls.
-
-Profiles are stored under:
-
-```text
-~/.local/state/claude-kiss/profiles
-```
-
-Use `CLAUDE_KISS_PROFILES_DIR` to choose another directory.
 
 ### Common controls
 
@@ -600,7 +580,7 @@ Breaking changes and new mandatory dependencies need a strong reason.
 
 ## Project status
 
-Current release: `v0.3.0`.
+Current release: `v0.4.0`.
 
 Claude KISS is a working, deliberately small launcher. Its interfaces depend on Claude
 Code CLI flags, so compatibility checks are built into installation and tests. The design
