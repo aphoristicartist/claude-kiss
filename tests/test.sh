@@ -38,6 +38,8 @@ assert "design invariants" in compact
 PY
 
 "$repo_dir/bin/claude-kiss" --help | grep -q 'system-prompt'
+python3 "$repo_dir/evals/run_evals.py" --dry-run \
+  --tasks concise_answer --output-dir "$temporary/eval-dry-run" >/dev/null
 
 "$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check
 "$temporary/prefix/bin/claude-kiss" doctor

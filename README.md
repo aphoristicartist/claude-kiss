@@ -110,6 +110,32 @@ curl -fsSL .../install.sh | CLAUDE_KISS_REPO=https://example.invalid/repo sh
 Review `install.sh` before piping it into a shell. Prefer a reviewed tag over a moving
 branch for managed machines.
 
+## Evaluations
+
+The repository includes a paired harness that compares ordinary `claude` and `claude-kiss`
+on identical temporary fixtures. It measures task correctness, file scope, created files,
+added comments, hidden anti-hardcoding checks, response size, reported token usage and
+cost, agent turns, and wall time.
+
+Run the default four-task smoke benchmark:
+
+```sh
+python3 evals/run_evals.py
+```
+
+Model requests can cost real money. Set an explicit model, effort level, and per-call
+budget when needed:
+
+```sh
+python3 evals/run_evals.py --model opus --effort high --budget 1.0
+```
+
+The current local run is recorded in [`evals/RESULTS.md`](evals/RESULTS.md). Both launchers
+passed all four checks and changed the same expected files. Claude KISS averaged 56.6%
+fewer result words, 61.0% lower reported API cost, 49.5% fewer cache-read tokens, and
+29.1% lower wall time. It also used more agent turns in that run, so the result is not a
+claim that KISS always takes fewer actions.
+
 ## Why this design
 
 Claude Code has several overlapping customization mechanisms:
