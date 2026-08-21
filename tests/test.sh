@@ -41,7 +41,9 @@ assert "report only an important finding, direction change, or blocker" in promp
 assert "KISS is not minimal effort or a shortcut" in prompt
 assert "Fix the root cause at the appropriate layer" in prompt
 assert "lazy workaround" in prompt
+assert "Before compaction" in prompt
 assert "After compaction or a resumed session" in prompt
+assert "Do not replace the user's objective with a newly discovered subtask" in prompt
 assert "add or update focused tests" in prompt
 assert "Never ignore, skip, or weaken a relevant failing check" in prompt
 assert "never to hide the behavior under test" in prompt
@@ -73,6 +75,108 @@ PY
 "$repo_dir/bin/claude-kiss" --help | grep -q 'system-prompt'
 python3 "$repo_dir/evals/run_evals.py" --dry-run \
   --tasks concise_answer --output-dir "$temporary/eval-dry-run" >/dev/null
+
+python3 - "$repo_dir" <<'PY'
+import importlib.util
+import tempfile
+from pathlib import Path
+
+repo = Path(__import__("sys").argv[1])
+spec = importlib.util.spec_from_file_location("claude_kiss_evals", repo / "evals" / "run_evals.py")
+evals = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(evals)
+
+assert list(evals.TASKS) == [
+    "concise_answer",
+    "minimal_bugfix",
+    "scope_discipline",
+    "no_lazy_workaround",
+    "targeted_regression_test",
+    "cross_file_bugfix",
+    "review_no_edit",
+    "long_horizon_handoff",
+]
+
+
+def check_expected(name, mutate, result="done"):
+    task = evals.TASKS[name]
+    with tempfile.TemporaryDirectory() as temporary:
+        fixture = Path(temporary) / "fixture"
+        evals.write_fixture(fixture, task)
+        before = evals.snapshot(fixture)
+        mutate(fixture)
+        after = evals.snapshot(fixture)
+        record = {
+            "result": result,
+            **evals.file_delta(before, after),
+            "post_tests": evals.run_post_tests(fixture, name),
+            "file_contents": {
+                path: content.decode("utf-8", errors="replace")
+                for path, content in after.items()
+            },
+        }
+        checks = {key: bool(check(record)) for key, check in task["checks"].items()}
+        assert all(checks.values()), (name, checks)
+
+
+def targeted_regression(fixture):
+    (fixture / "temperature.py").write_text(
+        "def celsius_to_fahrenheit(celsius):\n"
+        "    return celsius * 9 / 5 + 32\n",
+        encoding="utf-8",
+    )
+    (fixture / "test_temperature.py").write_text(
+        "from temperature import celsius_to_fahrenheit\n"
+        "\n"
+        "assert celsius_to_fahrenheit(0) == 32\n",
+        encoding="utf-8",
+    )
+
+
+def cross_file_bugfix(fixture):
+    (fixture / "receipt.py").write_text(
+        "from pricing import total_cents\n"
+        "\n"
+        "\n"
+        "def render_receipt(items):\n"
+        '    return f"Total: ${total_cents(items) / 100:.2f}"\n',
+        encoding="utf-8",
+    )
+
+
+def long_horizon_handoff(fixture):
+    (fixture / "pipeline.py").write_text(
+        "def decode(value):\n"
+        '    return value.split(",")\n'
+        "\n"
+        "\n"
+        "def normalize(parts):\n"
+        '    return [part.strip().lower() for part in parts]\n'
+        "\n"
+        "\n"
+        "def encode(parts):\n"
+        '    return ";".join(parts)\n'
+        "\n"
+        "\n"
+        "def convert(value):\n"
+        "    return encode(normalize(decode(value)))\n",
+        encoding="utf-8",
+    )
+
+
+check_expected("targeted_regression_test", targeted_regression)
+check_expected("cross_file_bugfix", cross_file_bugfix)
+check_expected("review_no_edit", lambda fixture: None, "Use left - right, not left + right.")
+check_expected("long_horizon_handoff", long_horizon_handoff)
+
+public = (repo / "evals" / "PUBLIC_BENCHMARKS.md").read_text(encoding="utf-8")
+assert "7131e4375048a0e408a8fb404b5f499d726b695b" in public
+assert "84d7ba5ee34fae6c11f0d7cb8ed5faa73a9ece54" in public
+assert public.count("`fix-git`") == 1
+assert "commit0-multilib-tdd" in public
+assert "run them automatically" in public
+PY
 
 mkdir -p "$temporary/prefix/bin"
 : >"$temporary/prefix/bin/claude-kiss-profile"

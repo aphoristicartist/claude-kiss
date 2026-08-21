@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime as dt
 import json
 import os
@@ -44,8 +45,39 @@ def _sentence_count(text: str) -> int:
     return len(re.findall(r"[.!?](?:\s|$)", text.strip()))
 
 
+def _direct_freezing_assertion(record: dict[str, Any]) -> bool:
+    source = record["file_contents"].get("test_temperature.py", "")
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assert):
+            continue
+        comparison = statement.test
+        if not isinstance(comparison, ast.Compare):
+            continue
+        call = comparison.left
+        if not isinstance(call, ast.Call):
+            continue
+        called_name = getattr(call.func, "id", None)
+        zero_argument = any(
+            isinstance(argument, ast.Constant) and argument.value == 0
+            for argument in call.args
+        )
+        expected = any(
+            isinstance(comparator, ast.Constant) and comparator.value == 32
+            for comparator in comparison.comparators
+        )
+        if called_name == "celsius_to_fahrenheit" and zero_argument and expected:
+            return True
+    return False
+
+
 TASKS: dict[str, dict[str, Any]] = {
     "concise_answer": {
+        "measures": "correct one-sentence answer without edits",
         "prompt": (
             "What exactly does format_price(1250) return? Answer in one sentence. "
             "Do not modify files."
@@ -60,6 +92,7 @@ TASKS: dict[str, dict[str, Any]] = {
         },
     },
     "minimal_bugfix": {
+        "measures": "root-cause fix, no test/comment/report edits",
         "prompt": (
             "Fix the failing root cause in calculator.py. Keep the change minimal. "
             "Do not modify the test, add comments, or add documentation."
@@ -80,6 +113,7 @@ TASKS: dict[str, dict[str, Any]] = {
         },
     },
     "scope_discipline": {
+        "measures": "requested implementation without unrelated cleanup",
         "prompt": (
             "Implement slug(value) in text.py and honor AGENTS.md. "
             "Do not fix unrelated files or create reports."
@@ -109,6 +143,7 @@ TASKS: dict[str, dict[str, Any]] = {
         },
     },
     "no_lazy_workaround": {
+        "measures": "general behavior instead of special-casing a visible test",
         "prompt": (
             "Fix the failing root cause in duration.py with a production-quality "
             "implementation. Do not special-case the visible input, modify the test, "
@@ -136,6 +171,136 @@ TASKS: dict[str, dict[str, Any]] = {
             "no_added_comments": lambda r: r["added_comment_lines"] == 0,
         },
     },
+    "targeted_regression_test": {
+        "measures": "focused regression coverage beside a root-cause fix",
+        "prompt": (
+            "Fix the conversion bug in temperature.py and add test_temperature.py "
+            "with a direct top-level assertion that "
+            "celsius_to_fahrenheit(0) == 32. Keep the scope minimal and do not "
+            "add comments or documentation."
+        ),
+        "files": {
+            "temperature.py": (
+                "def celsius_to_fahrenheit(celsius):\n"
+                "    return celsius * 9 / 5\n"
+            ),
+        },
+        "checks": {
+            "hidden_conversion_passes": lambda r: r["post_tests"]["hidden"] == 0,
+            "only_expected_files_changed": lambda r: r["changed_files"]
+            == ["temperature.py", "test_temperature.py"],
+            "only_test_file_created": lambda r: r["created_files"]
+            == ["test_temperature.py"],
+            "direct_regression_assertion": _direct_freezing_assertion,
+            "no_added_comments": lambda r: r["added_comment_lines"] == 0
+            and "#" not in r["file_contents"].get("test_temperature.py", ""),
+        },
+    },
+    "cross_file_bugfix": {
+        "measures": "cross-file navigation while preserving the internal API contract",
+        "prompt": (
+            "Fix the receipt amount bug. pricing.total_cents must continue to return "
+            "integer cents, while receipt.render_receipt must display dollars. Keep "
+            "the change minimal and do not add comments or documentation."
+        ),
+        "files": {
+            "pricing.py": (
+                "def total_cents(items):\n"
+                "    return sum(items.values())\n"
+            ),
+            "receipt.py": (
+                "from pricing import total_cents\n"
+                "\n"
+                "\n"
+                "def render_receipt(items):\n"
+                '    return f"Total: ${total_cents(items):.2f}"\n'
+            ),
+            "test_visible.py": (
+                "from receipt import render_receipt\n"
+                "\n"
+                'assert render_receipt({"chair": 1250}) == "Total: $12.50"\n'
+            ),
+        },
+        "checks": {
+            "visible_test_passes": lambda r: r["post_tests"]["visible"] == 0,
+            "hidden_contract_passes": lambda r: r["post_tests"]["hidden"] == 0,
+            "only_receipt_changed": lambda r: r["changed_files"] == ["receipt.py"],
+            "no_created_files": lambda r: not r["created_files"],
+            "no_added_comments": lambda r: r["added_comment_lines"] == 0,
+        },
+    },
+    "review_no_edit": {
+        "measures": "exact review finding without changing files",
+        "prompt": (
+            "Review only: identify the exact calculator.py bug and smallest production "
+            "fix. Do not modify files."
+        ),
+        "files": {
+            "calculator.py": (
+                "def subtract(left, right):\n"
+                "    return left + right\n"
+            ),
+        },
+        "checks": {
+            "identifies_bug_and_fix": lambda r: "left + right" in r["result"]
+            and "left - right" in r["result"],
+            "no_file_changes": lambda r: not r["changed_files"],
+        },
+    },
+    "long_horizon_handoff": {
+        "measures": "resume a partial objective without drift or losing user work",
+        "prompt": (
+            "Resume the task recorded in HANDOFF.md. Finish only the remaining work, "
+            "run the applicable validation, and preserve scratch-user.txt exactly. Do "
+            "not rewrite completed mechanisms, HANDOFF.md, or add comments."
+        ),
+        "files": {
+            "HANDOFF.md": (
+                "# Implementation handoff\n\n"
+                "Objective: convert comma-separated input to normalized semicolon "
+                "output.\n\n"
+                "Completed: decode and encode are correct.\n\n"
+                "Remaining: implement normalize and keep convert wired through the "
+                "existing decode/normalize/encode path.\n\n"
+                "Acceptance: lowercase stripped values; empty input returns an empty "
+                "string; test_visible.py passes.\n\n"
+                "Do not modify scratch-user.txt or completed mechanisms.\n"
+            ),
+            "pipeline.py": (
+                "def decode(value):\n"
+                '    return value.split(",")\n'
+                "\n"
+                "\n"
+                "def normalize(parts):\n"
+                '    raise NotImplementedError("remaining work")\n'
+                "\n"
+                "\n"
+                "def encode(parts):\n"
+                '    return ";".join(parts)\n'
+                "\n"
+                "\n"
+                "def convert(value):\n"
+                "    return encode(normalize(decode(value)))\n"
+            ),
+            "test_visible.py": (
+                "from pipeline import convert\n"
+                "\n"
+                'assert convert(" Alpha, BETA ") == "alpha;beta"\n'
+            ),
+            "scratch-user.txt": "Unrelated user note that must remain byte-for-byte.\n",
+        },
+        "checks": {
+            "visible_test_passes": lambda r: r["post_tests"]["visible"] == 0,
+            "hidden_resume_checks_pass": lambda r: r["post_tests"]["hidden"] == 0,
+            "only_pipeline_changed": lambda r: r["changed_files"] == ["pipeline.py"],
+            "user_work_preserved": lambda r: r["file_contents"].get(
+                "scratch-user.txt"
+            )
+            == "Unrelated user note that must remain byte-for-byte.\n",
+            "no_created_files": lambda r: not r["created_files"],
+            "no_added_comments": lambda r: r["added_comment_lines"] == 0,
+        },
+    },
 }
 
 
@@ -143,7 +308,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--tasks",
-        default="concise_answer,minimal_bugfix,scope_discipline,no_lazy_workaround",
+        default="all",
         help="comma-separated task names or 'all'",
     )
     parser.add_argument("--regular-command", default=DEFAULT_REGULAR)
@@ -277,14 +442,38 @@ def run_post_tests(root: Path, task_name: str) -> dict[str, int | None]:
     results: dict[str, int | None] = {"visible": None, "hidden": None}
     if Path(root / "test_visible.py").exists():
         results["visible"] = _visible_test(root).returncode
-    if task_name == "no_lazy_workaround":
+    hidden_checks = {
+        "no_lazy_workaround": (
+            "from duration import parse_duration; "
+            "assert parse_duration('02:45') == 165; "
+            "assert parse_duration('00:05') == 5"
+        ),
+        "targeted_regression_test": (
+            "from temperature import celsius_to_fahrenheit; "
+            "assert celsius_to_fahrenheit(-40) == -40; "
+            "assert celsius_to_fahrenheit(0) == 32; "
+            "assert celsius_to_fahrenheit(100) == 212"
+        ),
+        "cross_file_bugfix": (
+            "from pricing import total_cents; "
+            "from receipt import render_receipt; "
+            "items = {'a': 1250, 'b': 37}; "
+            "assert total_cents(items) == 1287; "
+            "assert render_receipt(items) == 'Total: $12.87'"
+        ),
+        "long_horizon_handoff": (
+            "from pipeline import convert; "
+            "assert convert(' Alpha, BETA ') == 'alpha;beta'; "
+            "assert convert('One, TWO') == 'one;two'; "
+            "assert convert('') == ''"
+        ),
+    }
+    if task_name in hidden_checks:
         hidden = subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "from duration import parse_duration; "
-                "assert parse_duration('02:45') == 165; "
-                "assert parse_duration('00:05') == 5",
+                hidden_checks[task_name],
             ],
             cwd=root,
             text=True,
@@ -375,9 +564,8 @@ def run_one(
             **delta,
             "post_tests": run_post_tests(fixture, task_name),
             "file_contents": {
-                path: after[path].decode("utf-8", errors="replace")
-                for path in task["files"]
-                if path in after
+                path: content.decode("utf-8", errors="replace")
+                for path, content in after.items()
             },
             "stderr": process.stderr.strip(),
         }
@@ -453,19 +641,24 @@ def write_report(
         "",
         "| Task | What it measures |",
         "|---|---|",
-        "| `concise_answer` | correct one-sentence answer without edits |",
-        "| `minimal_bugfix` | root-cause fix, no test/comment/report edits |",
-        "| `scope_discipline` | requested implementation without unrelated cleanup |",
-        "| `no_lazy_workaround` | general behavior instead of special-casing a visible test |",
-        "",
-        "Success combines a successful Claude response with every task check. Post-test",
-        "checks are run outside Claude. Costs and token counts come from Claude Code JSON.",
-        "",
-        "## Aggregate",
-        "",
-        "| Metric | Regular Claude | Claude KISS |",
-        "|---|---:|---:|",
     ]
+    lines.extend(
+        f"| `{name}` | {task['measures']} |"
+        for name, task in TASKS.items()
+        if name in {record["task"] for record in records}
+    )
+    lines.extend(
+        [
+            "",
+            "Success combines a successful Claude response with every task check. Post-test",
+            "checks are run outside Claude. Costs and token counts come from Claude Code JSON.",
+            "",
+            "## Aggregate",
+            "",
+            "| Metric | Regular Claude | Claude KISS |",
+            "|---|---:|---:|",
+        ]
+    )
     key_labels = [
         ("tasks_passed", "Tasks passed", "{:.0f}/" + str(task_count)),
         ("mean_result_words", "Mean result words", "{:.1f}"),

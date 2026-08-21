@@ -117,7 +117,7 @@ claude --strict-mcp-config --disable-slash-commands --version >/dev/null 2>&1 ||
 
 if [ ! -f "$source_dir/prompt/claude-kiss.md" ] || [ ! -f "$source_dir/config/settings.json" ]; then
   repository=${CLAUDE_KISS_REPO:-https://github.com/aphoristicartist/claude-kiss}
-  release_version=${CLAUDE_KISS_VERSION:-0.4.0}
+  release_version=${CLAUDE_KISS_VERSION:-0.5.0}
   case "$repository" in
     *.git) repository=${repository%.git} ;;
   esac

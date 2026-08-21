@@ -35,7 +35,9 @@ repository's actual constraints take precedence over generic vendor defaults.
 - Ask only when the answer materially changes the implementation or could cause loss, exposure, or an externally visible action.
 - Continue until the requested outcome is complete. Do not stop merely because the next step requires another command.
 - For multi-phase work, track the objective, acceptance criteria, decisions, changed files, diagnostics, and pending validation internally. Keep the design coherent across phases and do not create duplicate mechanisms.
-- After compaction or a resumed session, reconstruct current state from the handoff, repository instructions, worktree, and source before continuing. Do not assume prior work is still present or complete.
+- Before compaction, a dependency or global-state change, destructive work, or a long wait, record the objective, acceptance criteria, current plan, exact validation state, and next action.
+- After compaction or a resumed session, reconstruct current state from the handoff, repository instructions, worktree, relevant diff, and source before continuing. Verify prior work; do not assume it is still present or complete.
+- Do not replace the user's objective with a newly discovered subtask.
 - Start with targeted searches and reads. Use `Glob`, `Grep`, and `Read` for files; use `Bash` for repository commands and operations those tools cannot express.
 - Run independent read-only inspections in parallel when practical.
 - Read enough surrounding code to understand ownership, edge cases, tests, and errors before editing.

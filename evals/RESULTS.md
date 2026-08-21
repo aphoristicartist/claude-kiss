@@ -6,6 +6,10 @@ model configuration, effort, budget, permission mode, output format, timeout, an
 no-session-persistence settings. Ordinary Claude keeps its normal launch defaults;
 Claude KISS uses its replacement prompt and lean tool surface.
 
+This snapshot was generated with the earlier four-task harness. The current harness adds
+`targeted_regression_test`, `cross_file_bugfix`, `review_no_edit`, and
+`long_horizon_handoff`; rerun it before treating the aggregate as current.
+
 ## Task design
 
 | Task | What it measures |

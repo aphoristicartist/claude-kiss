@@ -48,6 +48,7 @@ not minimal effort.
 - [Quick start](#quick-start)
 - [What changes immediately](#what-changes-immediately)
 - [Measured difference](#measured-difference)
+- [Builder workflow map](#builder-workflow-map)
 - [Concision without lazy work](#concision-without-lazy-work)
 - [Daily use](#daily-use)
 - [Context compaction](#context-compaction)
@@ -69,7 +70,7 @@ Install Claude Code and authenticate normally first.
 Install the tagged Claude KISS release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.4.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/aphoristicartist/claude-kiss/v0.5.0/install.sh | sh
 ```
 
 Check the installation and resulting Claude Code version:
@@ -185,7 +186,20 @@ The repository includes a paired evaluator, not a marketing chart. It runs ordin
 correctness, file scope, created files, added comments, hidden anti-hardcoding checks,
 response size, reported token usage and cost, agent turns, and wall time.
 
-Run the default four-task smoke benchmark:
+The current evaluator covers eight common builder flows:
+
+| Flow | Task |
+|---|---|
+| Answer without editing | `concise_answer` |
+| Minimal root-cause fix | `minimal_bugfix` |
+| Focused implementation | `scope_discipline` |
+| No lazy special case | `no_lazy_workaround` |
+| Regression-test discipline | `targeted_regression_test` |
+| Cross-file bug fix | `cross_file_bugfix` |
+| Review-only response | `review_no_edit` |
+| Resume from a handoff | `long_horizon_handoff` |
+
+Run all eight tasks:
 
 ```sh
 python3 evals/run_evals.py
@@ -197,10 +211,11 @@ Model requests can cost real money. Control the model, effort, and budget when n
 python3 evals/run_evals.py --model opus --effort high --budget 1.0
 ```
 
-Current local paired run:
+Current local paired snapshot:
 
-Recorded with Claude KISS `v0.2.2`; the repository includes the harness so you can rerun
-it against the current release.
+Recorded on 2026-08-20 with the earlier four-task harness, before the four common-workflow
+and resume tasks were added. The repository includes the current harness so you can rerun
+it against this release.
 
 | Metric | Regular Claude | Claude KISS | Relative change |
 |---|---:|---:|---:|
@@ -214,6 +229,15 @@ it against the current release.
 Read the complete methodology, task results, and caveats in
 [`evals/RESULTS.md`](evals/RESULTS.md).
 
+For optional public, containerized probes, Claude KISS pins a ten-task Terminal-Bench
+2.1 common-workflow subset and a three-task Long-Horizon Terminal-Bench subset. Those
+recipes are explicit and never run by the normal tests because they require Docker,
+Harbor, external images, and real model spend:
+
+```text
+evals/PUBLIC_BENCHMARKS.md
+```
+
 Be precise about what this proves:
 
 - It is one local paired run, not statistical proof.
@@ -222,6 +246,20 @@ Be precise about what this proves:
   reported one auxiliary Haiku call.
 - Claude KISS used more turns, and one task produced a longer KISS response.
 - The evaluator is included so you can rerun and challenge it on your own tasks.
+
+## Builder workflow map
+
+| You are doing | Desired KISS behavior |
+|---|---|
+| Asking what code does | Answer precisely; do not edit |
+| Reviewing a defect | Name the root cause and smallest safe fix; edit only when asked |
+| Fixing a bug | Inspect enough context, fix the cause, add focused regression coverage when needed |
+| Implementing a feature | Preserve existing patterns and stop at the requested behavior |
+| Repairing CI | Reproduce, diagnose, fix, rerun the exact failing check |
+| Refactoring or migrating | Preserve behavior, validate broadly enough, avoid unrelated cleanup |
+| Working in a dirty repository | Inspect diffs and protect unrelated user work |
+| Continuing a long task | Restore objective and validation state, verify the worktree, avoid duplicate mechanisms |
+| Hitting a blocker | Report the exact failure and next action rather than inventing completion |
 
 ## Concision without lazy work
 
@@ -580,7 +618,7 @@ Breaking changes and new mandatory dependencies need a strong reason.
 
 ## Project status
 
-Current release: `v0.4.0`.
+Current release: `v0.5.0`.
 
 Claude KISS is a working, deliberately small launcher. Its interfaces depend on Claude
 Code CLI flags, so compatibility checks are built into installation and tests. The design
