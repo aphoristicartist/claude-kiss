@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-version="0.5.0"
+version="0.6.0"
 claude_bin="${CLAUDE_BIN:-claude}"
 default_home=__CLAUDE_KISS_DEFAULT_HOME__
 home="${CLAUDE_KISS_HOME:-$default_home}"
@@ -17,11 +17,56 @@ if [ ! -f "$home/prompt/claude-kiss.md" ] || [ ! -f "$home/config/settings.json"
 fi
 
 home=$(CDPATH= cd -- "$home" && pwd -P)
+config_home="${CLAUDE_KISS_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/claude-kiss}"
 prompt="${CLAUDE_KISS_PROMPT:-$home/prompt/claude-kiss.md}"
+prompt_source=managed
+if [ "${CLAUDE_KISS_PROMPT+x}" = x ]; then
+  prompt_source=environment
+elif [ -f "$config_home/prompt.md" ]; then
+  prompt="$config_home/prompt.md"
+  prompt_source=user
+fi
 settings="${CLAUDE_KISS_SETTINGS:-$home/config/settings.json}"
+settings_source=managed
+if [ "${CLAUDE_KISS_SETTINGS+x}" = x ]; then
+  settings_source=environment
+elif [ -f "$config_home/settings.json" ]; then
+  settings="$config_home/settings.json"
+  settings_source=user
+fi
 tools="${CLAUDE_KISS_TOOLS:-Bash,Glob,Grep,Read,Edit,Write}"
+tools_source=managed
+if [ "${CLAUDE_KISS_TOOLS+x}" = x ]; then
+  tools_source=environment
+fi
 compact_profile="${CLAUDE_KISS_COMPACT:-kiss}"
 compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
+compact_memory_source=managed
+if [ "${CLAUDE_KISS_COMPACT_MEMORY+x}" = x ]; then
+  compact_memory_source=environment
+elif [ -f "$config_home/memory/CLAUDE.md" ]; then
+  compact_memory="$config_home/memory"
+  compact_memory_source=user
+fi
+
+init_user_config() {
+  source_file=$1
+  target_file=$2
+
+  if [ ! -f "$source_file" ]; then
+    printf 'claude-kiss: managed asset not found: %s\n' "$source_file" >&2
+    exit 1
+  fi
+  if [ -e "$target_file" ]; then
+    printf 'exists:  %s\n' "$target_file"
+    return
+  fi
+  cp "$source_file" "$target_file" || {
+    printf 'claude-kiss: could not create %s\n' "$target_file" >&2
+    exit 1
+  }
+  printf 'created: %s\n' "$target_file"
+}
 
 print_help() {
   cat <<'EOF'
@@ -31,6 +76,7 @@ Usage:
   claude-kiss [normal Claude Code arguments]
   claude-kiss auth [arguments]     Run Claude auth without KISS session flags
   claude-kiss doctor               Check the local installation
+  claude-kiss init                 Copy managed assets into your config directory
   claude-kiss --help               Show this help
   claude-kiss --version            Show wrapper and Claude versions
 
@@ -39,6 +85,7 @@ Useful overrides:
   CLAUDE_KISS_HOME=path            Installation/data directory
   CLAUDE_KISS_PROMPT=path          Replacement system-prompt file
   CLAUDE_KISS_SETTINGS=path        Replacement settings file
+  CLAUDE_KISS_CONFIG_HOME=path     User-owned configuration directory
   CLAUDE_KISS_TOOLS=list           Built-in tool list, or 'default'
   CLAUDE_KISS_SETTING_SOURCES=list Settings scopes (default: user)
   CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
@@ -78,6 +125,20 @@ case "${1-}" in
     exec "$claude_bin" auth "$@"
     ;;
 esac
+
+if [ "${1-}" = "init" ]; then
+  [ "$#" -eq 1 ] || {
+    printf 'claude-kiss: init does not accept additional arguments\n' >&2
+    exit 2
+  }
+  mkdir -p "$config_home/memory" || exit 1
+  init_user_config "$home/prompt/claude-kiss.md" "$config_home/prompt.md"
+  init_user_config "$home/config/settings.json" "$config_home/settings.json"
+  init_user_config "$home/memory/CLAUDE.md" "$config_home/memory/CLAUDE.md"
+  printf '\nThese files are yours; updates will not replace them.\n'
+  printf 'Run claude-kiss doctor to inspect the effective configuration.\n'
+  exit 0
+fi
 
 if ! command -v "$claude_bin" >/dev/null 2>&1; then
   printf 'claude-kiss: Claude Code executable not found: %s\n' "$claude_bin" >&2
@@ -120,23 +181,45 @@ fi
 if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'claude-kiss %s\n' "$version"
   printf 'home: %s\n' "$home"
+  printf 'user config: %s\n' "$config_home"
   printf 'prompt: %s\n' "$prompt"
+  printf 'prompt source: %s\n' "$prompt_source"
   printf 'settings: %s\n' "$settings"
+  printf 'settings source: %s\n' "$settings_source"
   printf 'tools: %s\n' "$tools"
+  printf 'tools source: %s\n' "$tools_source"
   printf 'compaction: %s\n' "$compact_profile"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then
     printf 'compact memory: %s/CLAUDE.md\n' "$compact_memory"
+    printf 'compact memory source: %s\n' "$compact_memory_source"
   else
     printf 'compact memory: disabled\n'
   fi
   printf 'claude: %s\n' "$(command -v "$claude_bin")"
   "$claude_bin" --version
-  "$claude_bin" --system-prompt-file /dev/null --version >/dev/null 2>&1 || {
-    printf 'error: installed Claude Code lacks or rejects --system-prompt-file\n' >&2
-    exit 1
+
+  check_claude_capability() {
+    description=$1
+    shift
+    if ! "$claude_bin" "$@" --version >/dev/null 2>&1; then
+      printf 'error: installed Claude Code lacks or rejects %s\n' "$description" >&2
+      capability_failed=1
+    fi
   }
+
+  capability_failed=0
+  check_claude_capability '--system-prompt-file' --system-prompt-file "$prompt"
+  check_claude_capability '--setting-sources' --setting-sources user
+  check_claude_capability '--settings' --settings "$settings"
+  check_claude_capability '--tools' --tools "$tools"
+  check_claude_capability '--autocompact' --autocompact auto
+  check_claude_capability '--strict-mcp-config' --strict-mcp-config
+  check_claude_capability '--disable-slash-commands' --disable-slash-commands
+  check_claude_capability '--add-dir' --add-dir "$home"
+  check_claude_capability '--disallowedTools' --disallowedTools "Read($home/**)"
+  [ "$capability_failed" -eq 0 ] || exit 1
   exit 0
 fi
 
@@ -193,7 +276,7 @@ fi
 if [ "$load_compact_memory" -eq 1 ]; then
   export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1
   set -- --add-dir "$compact_memory" "$@"
-  set -- --disallowedTools "Read(/$compact_memory/**)" "Edit(/$compact_memory/**)" "$@"
+  set -- --disallowedTools "Read($compact_memory/**)" "Edit($compact_memory/**)" "$@"
 fi
 
 if [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" = "1" ]; then

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Claude Code CLI
+        run: npm install --global @anthropic-ai/claude-code
+
+      - name: Syntax checks
+        run: |
+          sh -n bin/claude-kiss install.sh tests/test.sh
+          python3 -m py_compile evals/run_evals.py
+          python3 -m json.tool config/settings.json >/dev/null
+
+      - name: Integration tests
+        run: ./tests/test.sh
+
+      - name: Build website artifacts
+        run: ./website/build.sh

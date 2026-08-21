@@ -3,12 +3,19 @@ set -eu
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-test.XXXXXX")
-trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 version=$(cat "$repo_dir/VERSION")
+generated_installer="$repo_dir/website/public/install.sh"
+generated_release="$repo_dir/website/public/releases/v$version"
+trap 'rm -rf "$temporary" "$generated_installer" "$generated_release"' EXIT HUP INT TERM
 grep -q "version=\"$version\"" "$repo_dir/bin/claude-kiss"
 grep -q "release_version=\${CLAUDE_KISS_VERSION:-$version}" "$repo_dir/install.sh"
-grep -q "claude-kiss/v$version/install.sh" "$repo_dir/README.md"
+grep -q 'https://claude-kiss.com/install.sh' "$repo_dir/README.md"
 grep -q 'https://github.com/aphoristicartist/claude-kiss' "$repo_dir/install.sh"
+grep -q 'https://claude-kiss.com/releases/v$release_version/claude-kiss.tar.gz' \
+  "$repo_dir/install.sh"
+grep -q 'source.sha256' "$repo_dir/install.sh"
+grep -q '/releases/latest https://claude-kiss.com/releases/v'$version' 302' \
+  "$repo_dir/website/public/_redirects"
 [ ! -e "$repo_dir/bin/claude-kiss-profile" ]
 
 python3 - <<'PY'
@@ -179,10 +186,68 @@ assert "run them automatically" in public
 PY
 
 mkdir -p "$temporary/prefix/bin"
+
+user_config="$temporary/user-config"
+user_memory="$user_config/memory"
+CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" init >"$temporary/init.txt"
+[ -f "$user_config/prompt.md" ]
+[ -f "$user_config/settings.json" ]
+[ -f "$user_config/memory/CLAUDE.md" ]
+printf 'owned prompt\n' >"$user_config/prompt.md"
+CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" init >"$temporary/init-again.txt"
+grep -q '^exists:' "$temporary/init-again.txt"
+grep -q '^owned prompt$' "$user_config/prompt.md"
+user_memory=$(CDPATH= cd -- "$user_memory" && pwd -P)
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
+  >"$temporary/user-dry-run.txt"
+grep -F -- "$user_config/prompt.md" "$temporary/user-dry-run.txt" >/dev/null
+grep -F -- "$user_config/settings.json" "$temporary/user-dry-run.txt" >/dev/null
+grep -F -- "$user_memory" "$temporary/user-dry-run.txt" >/dev/null
+if grep -q -- 'Read(//' "$temporary/user-dry-run.txt"; then
+  printf 'error: compact memory tool pattern contains a double slash\n' >&2
+  exit 1
+fi
+
+CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" doctor >"$temporary/user-doctor.txt"
+grep -q '^prompt source: user$' "$temporary/user-doctor.txt"
+grep -q '^settings source: user$' "$temporary/user-doctor.txt"
+grep -q '^compact memory source: user$' "$temporary/user-doctor.txt"
+
+environment_prompt="$temporary/environment-prompt.md"
+cp "$user_config/prompt.md" "$environment_prompt"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
+  CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_PROMPT="$environment_prompt" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/environment-dry-run.txt"
+grep -F -- "$environment_prompt" "$temporary/environment-dry-run.txt" >/dev/null
+
+installer_config="$temporary/installer-config"
+mkdir -p "$installer_config"
+printf 'preserve me\n' >"$installer_config/prompt.md"
+
 : >"$temporary/prefix/bin/claude-kiss-profile"
-"$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check >/dev/null
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check >/dev/null
 [ ! -e "$temporary/prefix/bin/claude-kiss-profile" ]
-"$temporary/prefix/bin/claude-kiss" doctor
+CLAUDE_KISS_CONFIG_HOME="$installer_config" "$temporary/prefix/bin/claude-kiss" doctor
+
+"$repo_dir/website/build.sh" >"$temporary/website-build.txt"
+[ -f "$generated_installer" ]
+[ -f "$generated_release/claude-kiss.tar.gz" ]
+[ -f "$generated_release/claude-kiss.tar.gz.sha256" ]
+[ -f "$generated_release/release.json" ]
+tar -tzf "$generated_release/claude-kiss.tar.gz" | grep -q '^claude-kiss/bin/claude-kiss$'
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  CLAUDE_KISS_ARCHIVE="file://$generated_release/claude-kiss.tar.gz" \
+  "$generated_installer" --prefix "$temporary/website-prefix" --no-path-check >/dev/null
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$temporary/website-prefix/bin/claude-kiss" doctor >/dev/null
 
 CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
   grep -q -- '--system-prompt-file'
@@ -252,9 +317,11 @@ if CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT=wrong CLAUDE_KISS_HOME="$repo_dir" 
   exit 1
 fi
 
-"$repo_dir/install.sh" --prefix "$temporary/prefix" --uninstall >/dev/null
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$temporary/prefix" --uninstall >/dev/null
 [ ! -e "$temporary/prefix/bin/claude-kiss" ]
 [ ! -e "$temporary/prefix/bin/claude-kiss-profile" ]
 [ ! -e "$temporary/prefix/share/claude-kiss" ]
+grep -q '^preserve me$' "$installer_config/prompt.md"
 
 printf 'All Claude KISS tests passed.\n'

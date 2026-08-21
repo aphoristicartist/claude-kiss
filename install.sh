@@ -4,8 +4,10 @@ set -eu
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 source_temporary=""
 temporary=""
+executable_temporary=""
 prefix=${PREFIX:-$HOME/.local}
 data_dir=${DATA_DIR:-$prefix/share/claude-kiss}
+config_home=${CLAUDE_KISS_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/claude-kiss}
 mode=install
 modify_path=true
 
@@ -21,7 +23,8 @@ Options:
   -h, --help        Show help
 
 The installer does not modify ~/.claude, ~/.claude.json, or the normal `claude` command.
-When run remotely, set CLAUDE_KISS_REPO or use the project's documented install URL.
+Standalone installs download the matching immutable release from claude-kiss.com. For a
+mirror, set CLAUDE_KISS_ARCHIVE or CLAUDE_KISS_REPO. Review install.sh before running it.
 EOF
 }
 
@@ -62,6 +65,7 @@ fi
 cleanup() {
   [ -z "$temporary" ] || rm -rf "$temporary"
   [ -z "$source_temporary" ] || rm -rf "$source_temporary"
+  [ -z "$executable_temporary" ] || rm -rf "$executable_temporary"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -83,6 +87,9 @@ if [ "$mode" = uninstall ]; then
   [ -d "$data_dir" ] && rm -rf "$data_dir"
   printf 'Removed %s/bin/claude-kiss\n' "$prefix"
   printf 'Removed %s\n' "$data_dir"
+  if [ -d "$config_home" ]; then
+    printf 'Preserved your user configuration: %s\n' "$config_home"
+  fi
   printf 'The default Claude Code configuration was not changed.\n'
   exit 0
 fi
@@ -116,12 +123,20 @@ claude --strict-mcp-config --disable-slash-commands --version >/dev/null 2>&1 ||
 }
 
 if [ ! -f "$source_dir/prompt/claude-kiss.md" ] || [ ! -f "$source_dir/config/settings.json" ]; then
-  repository=${CLAUDE_KISS_REPO:-https://github.com/aphoristicartist/claude-kiss}
-  release_version=${CLAUDE_KISS_VERSION:-0.5.0}
-  case "$repository" in
-    *.git) repository=${repository%.git} ;;
-  esac
-  archive="$repository/archive/refs/tags/v$release_version.tar.gz"
+  release_version=${CLAUDE_KISS_VERSION:-0.6.0}
+  if [ -n "${CLAUDE_KISS_ARCHIVE:-}" ]; then
+    archive=$CLAUDE_KISS_ARCHIVE
+  else
+    repository=${CLAUDE_KISS_REPO:-https://github.com/aphoristicartist/claude-kiss}
+    case "$repository" in
+      *.git) repository=${repository%.git} ;;
+    esac
+    if [ "${CLAUDE_KISS_REPO+x}" = x ]; then
+      archive="$repository/archive/refs/tags/v$release_version.tar.gz"
+    else
+      archive="https://claude-kiss.com/releases/v$release_version/claude-kiss.tar.gz"
+    fi
+  fi
   source_temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-source.XXXXXX")
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL "$archive" -o "$source_temporary/source.tar.gz"
@@ -131,6 +146,28 @@ if [ ! -f "$source_dir/prompt/claude-kiss.md" ] || [ ! -f "$source_dir/config/se
     printf 'Downloading Claude KISS requires curl or wget.\n' >&2
     exit 1
   fi
+
+  case "$archive" in
+    https://claude-kiss.com/releases/*)
+      checksum_url="$archive.sha256"
+      if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$checksum_url" -o "$source_temporary/source.sha256"
+      else
+        wget -qO "$source_temporary/source.sha256" "$checksum_url"
+      fi
+      expected_checksum=$(awk '{print $1}' "$source_temporary/source.sha256")
+      if command -v sha256sum >/dev/null 2>&1; then
+        actual_checksum=$(sha256sum "$source_temporary/source.tar.gz" | awk '{print $1}')
+      else
+        actual_checksum=$(shasum -a 256 "$source_temporary/source.tar.gz" | awk '{print $1}')
+      fi
+      if [ "$actual_checksum" != "$expected_checksum" ]; then
+        printf 'Claude KISS archive checksum mismatch.\n' >&2
+        exit 1
+      fi
+      ;;
+  esac
+
   tar -xzf "$source_temporary/source.tar.gz" -C "$source_temporary" --strip-components=1
   source_dir=$source_temporary
 fi
@@ -139,22 +176,34 @@ fi
 [ -f "$source_dir/config/settings.json" ] || { printf 'Missing config/settings.json\n' >&2; exit 1; }
 [ -f "$source_dir/memory/CLAUDE.md" ] || { printf 'Missing memory/CLAUDE.md\n' >&2; exit 1; }
 
+claude --settings "$source_dir/config/settings.json" --version >/dev/null 2>&1 || {
+  printf 'Your Claude Code lacks or rejects --settings.\n' >&2
+  exit 1
+}
+claude --add-dir "$source_dir" --disallowedTools "Read($source_dir/**)" --version >/dev/null 2>&1 || {
+  printf 'Your Claude Code lacks or rejects the KISS memory flags.\n' >&2
+  exit 1
+}
+
 umask 022
 mkdir -p "$prefix/bin" "$data_dir/prompt" "$data_dir/config" "$data_dir/memory"
-temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-install.XXXXXX")
+# Stage beside the canonical assets so each final replacement is a same-filesystem move.
+temporary=$(mktemp -d "$data_dir/.install.XXXXXX")
+executable_temporary=$(mktemp -d "$prefix/bin/.claude-kiss-install.XXXXXX")
 
 cp "$source_dir/prompt/claude-kiss.md" "$temporary/claude-kiss.md"
 cp "$source_dir/config/settings.json" "$temporary/settings.json"
 cp "$source_dir/memory/CLAUDE.md" "$temporary/compact-CLAUDE.md"
-sed "s|__CLAUDE_KISS_DEFAULT_HOME__|$data_dir|g" "$source_dir/bin/claude-kiss" > "$temporary/claude-kiss"
-chmod 755 "$temporary/claude-kiss"
+sed "s|__CLAUDE_KISS_DEFAULT_HOME__|$data_dir|g" "$source_dir/bin/claude-kiss" > "$executable_temporary/claude-kiss"
+chmod 755 "$executable_temporary/claude-kiss"
 
-# Keep each update atomic. Existing canonical assets are intentionally replaced;
-# use CLAUDE_KISS_PROMPT/CLAUDE_KISS_SETTINGS for persistent personal forks.
+# Keep each update atomic. Managed assets are replaced; `claude-kiss init` owns
+# persistent user forks under CLAUDE_KISS_CONFIG_HOME.
 mv "$temporary/claude-kiss.md" "$data_dir/prompt/claude-kiss.md"
 mv "$temporary/settings.json" "$data_dir/config/settings.json"
 mv "$temporary/compact-CLAUDE.md" "$data_dir/memory/CLAUDE.md"
-mv "$temporary/claude-kiss" "$prefix/bin/claude-kiss"
+mv "$executable_temporary/claude-kiss" "$prefix/bin/claude-kiss"
+rmdir "$executable_temporary"
 # Remove the short-lived v0.3.0 helper without touching user profile data.
 rm -f "$prefix/bin/claude-kiss-profile"
 
