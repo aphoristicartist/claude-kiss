@@ -21,7 +21,7 @@
 
 <p align="center">
   <a href="https://claude-kiss.com">
-    <img src="website/public/og.jpg" alt="Claude Code, tuned for people who ship">
+    <img src="https://claude-kiss.com/og.jpg" alt="Claude Code, tuned for people who ship">
   </a>
 </p>
 
@@ -407,17 +407,27 @@ Your `~/.config/claude-kiss` directory remains.
 - `curl` or `wget` only for standalone installation
 - Python 3 only for the optional evaluator and repository tests
 
+## Release archive
+
+```sh
+./build-release.sh
+```
+
+This creates a standalone archive and SHA-256 checksum under `dist/`. Upload both files to
+the matching GitHub release; the separate website repository downloads and serves those
+immutable artifacts.
+
 ## Verify locally
 
 ```sh
 ./tests/test.sh
-sh -n bin/claude-kiss install.sh tests/test.sh
+sh -n bin/claude-kiss install.sh tests/test.sh build-release.sh
 python3 -m py_compile evals/run_evals.py
 python3 -m json.tool config/settings.json
 ```
 
 The tests cover launcher arguments, user-owned configuration, installer update/uninstall
-behavior, settings invariants, compaction modes, and evaluator checks.
+behavior, release packaging, settings invariants, compaction modes, and evaluator checks.
 
 ## Why no profiles?
 
@@ -438,7 +448,7 @@ Claude KISS does not need to know about your aliases.
 
 ## No-BS policy
 
-- Less is more: one HTML page, one stylesheet, and no website JavaScript.
+- Less is more: product code and website source live in separate repositories.
 - No wrapper telemetry.
 - No auto-update.
 - No marketplace.
@@ -450,11 +460,10 @@ Claude KISS does not need to know about your aliases.
 
 ## Website
 
-The source for [claude-kiss.com](https://claude-kiss.com) is stored in [`website/`](website).
-The site follows the same KISS constraint as the launcher: one HTML page, one stylesheet,
-system fonts, no JavaScript, no analytics, no external fonts, and no framework. Its
-release artifacts are built from this repository, so the domain serves the same code and
-assets you can audit here.
+[claude-kiss.com](https://claude-kiss.com) is maintained in the separate
+[claude-kiss-site](https://github.com/aphoristicartist/claude-kiss-site) repository. The
+launcher repository owns the release archive; the website repository owns copy, design,
+and Cloudflare deployment.
 
 ## Contributing
 

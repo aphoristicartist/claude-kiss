@@ -4,6 +4,3 @@ tmp/
 dist/
 node_modules/
 evals/results/
-website/public/install.sh
-website/public/releases/
-website/public/*.tmp

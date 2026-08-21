@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#ffffff"/>
-  <rect x="48" y="48" width="1104" height="534" fill="none" stroke="#111418" stroke-width="3"/>
-  <text x="100" y="205" fill="#111418" font-family="Helvetica" font-size="45" letter-spacing="8">CLAUDE KISS</text>
-  <text x="96" y="325" fill="#111418" font-family="Georgia" font-size="88">Less surface.</text>
-  <text x="96" y="425" fill="#111418" font-family="Georgia" font-size="88">More shipping.</text>
-  <text x="100" y="505" fill="#5d6470" font-family="Menlo" font-size="28">curl -fsSL https://claude-kiss.com/install.sh | sh</text>
-</svg>

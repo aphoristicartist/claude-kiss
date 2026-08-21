@@ -33,5 +33,5 @@ jobs:
       - name: Integration tests
         run: ./tests/test.sh
 
-      - name: Build website artifacts
-        run: ./website/build.sh
+      - name: Build release archive
+        run: ./build-release.sh

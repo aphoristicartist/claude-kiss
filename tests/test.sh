@@ -4,9 +4,8 @@ set -eu
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-test.XXXXXX")
 version=$(cat "$repo_dir/VERSION")
-generated_installer="$repo_dir/website/public/install.sh"
-generated_release="$repo_dir/website/public/releases/v$version"
-trap 'rm -rf "$temporary" "$generated_installer" "$generated_release"' EXIT HUP INT TERM
+generated_release="$repo_dir/dist"
+trap 'rm -rf "$temporary" "$generated_release"' EXIT HUP INT TERM
 grep -q "version=\"$version\"" "$repo_dir/bin/claude-kiss"
 grep -q "release_version=\${CLAUDE_KISS_VERSION:-$version}" "$repo_dir/install.sh"
 grep -q 'https://claude-kiss.com/install.sh' "$repo_dir/README.md"
@@ -14,8 +13,6 @@ grep -q 'https://github.com/aphoristicartist/claude-kiss' "$repo_dir/install.sh"
 grep -q 'https://claude-kiss.com/releases/v$release_version/claude-kiss.tar.gz' \
   "$repo_dir/install.sh"
 grep -q 'source.sha256' "$repo_dir/install.sh"
-grep -q '/releases/latest https://claude-kiss.com/releases/v'$version' 302' \
-  "$repo_dir/website/public/_redirects"
 [ ! -e "$repo_dir/bin/claude-kiss-profile" ]
 
 python3 - <<'PY'
@@ -237,17 +234,16 @@ CLAUDE_KISS_CONFIG_HOME="$installer_config" \
 [ ! -e "$temporary/prefix/bin/claude-kiss-profile" ]
 CLAUDE_KISS_CONFIG_HOME="$installer_config" "$temporary/prefix/bin/claude-kiss" doctor
 
-"$repo_dir/website/build.sh" >"$temporary/website-build.txt"
-[ -f "$generated_installer" ]
+"$repo_dir/build-release.sh" >"$temporary/release-build.txt"
 [ -f "$generated_release/claude-kiss.tar.gz" ]
 [ -f "$generated_release/claude-kiss.tar.gz.sha256" ]
 [ -f "$generated_release/release.json" ]
 tar -tzf "$generated_release/claude-kiss.tar.gz" | grep -q '^claude-kiss/bin/claude-kiss$'
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   CLAUDE_KISS_ARCHIVE="file://$generated_release/claude-kiss.tar.gz" \
-  "$generated_installer" --prefix "$temporary/website-prefix" --no-path-check >/dev/null
+  "$repo_dir/install.sh" --prefix "$temporary/release-prefix" --no-path-check >/dev/null
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
-  "$temporary/website-prefix/bin/claude-kiss" doctor >/dev/null
+  "$temporary/release-prefix/bin/claude-kiss" doctor >/dev/null
 
 CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
   grep -q -- '--system-prompt-file'
