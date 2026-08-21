@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Claude KISS — less surface, more shipping</title>
-  <meta name="description" content="A transparent second launcher for Claude Code: concise defaults, six core tools, editable configuration, and no vendor noise.">
+  <meta name="description" content="A transparent second launcher for Claude Code for people tired of scope creep, over-engineering, surprise tools, and vendor noise.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#ffffff">
   <link rel="canonical" href="https://claude-kiss.com/">
@@ -12,12 +12,12 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Claude KISS">
   <meta property="og:title" content="Claude KISS — less surface, more shipping">
-  <meta property="og:description" content="Concise defaults. Six core tools. Files you own. No vendor noise.">
+  <meta property="og:description" content="Focused coding defaults. Six core tools. Files you own. No vendor noise.">
   <meta property="og:url" content="https://claude-kiss.com/">
   <meta property="og:image" content="https://claude-kiss.com/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Claude KISS — less surface, more shipping">
-  <meta name="twitter:description" content="Concise defaults. Six core tools. Files you own. No vendor noise.">
+  <meta name="twitter:description" content="Focused coding defaults. Six core tools. Files you own. No vendor noise.">
   <meta name="twitter:image" content="https://claude-kiss.com/og.jpg">
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -27,6 +27,7 @@
   <header>
     <a class="wordmark" href="/">Claude&nbsp;KISS</a>
     <nav aria-label="Site">
+      <a href="#why">Why</a>
       <a href="#defaults">Defaults</a>
       <a href="#own">Own</a>
       <a href="#inspect">Inspect</a>
@@ -39,9 +40,9 @@
     <section class="hero">
       <h1>Less surface.<br>More shipping.</h1>
       <p>
-        Claude KISS is a second launcher for Claude Code. It keeps the useful coding
-        harness, uses a concise builder-first prompt, exposes six core tools by default,
-        and leaves your normal <code>claude</code> command untouched.
+        Claude KISS is a second launcher for Claude Code. Questions stay questions. Fixes
+        stay focused. Extra tools stay opt-in. Your normal <code>claude</code> command
+        remains untouched.
       </p>
 
       <div class="command" id="install">
@@ -49,17 +50,37 @@
         <code>curl -fsSL https://claude-kiss.com/install.sh | sh</code>
       </div>
       <p class="fine">
-        Requires Claude Code. No sudo. No wrapper telemetry. No auto-update. Download and
-        read <a href="/install.sh">install.sh</a> first if you prefer.
+        Then run <code>claude-kiss</code>. Requires Claude Code. No sudo. No wrapper
+        telemetry. No auto-update. Download and read <a href="/install.sh">install.sh</a>
+        first if you prefer.
       </p>
     </section>
 
-    <section id="philosophy">
-      <p class="label">Philosophy</p>
+    <section id="why">
+      <p class="label">Why</p>
+      <h2>Fewer product surfaces. More developer intent.</h2>
+      <p>
+        Recent Claude Code discussions keep describing the same pattern: a capable coding
+        model whose defaults turn one clear request into a project tour.
+      </p>
       <blockquote>
         KISS is the smallest complete robust solution—not minimal effort, a stub, or a
         special case that passes one visible test.
       </blockquote>
+      <table>
+        <caption>What people keep running into, and what this launcher changes.</caption>
+        <tbody>
+          <tr><th>“It edited files when I asked a question.”</th><td>Questions are questions. Edit only when asked.</td></tr>
+          <tr><th>“A small fix became a refactor.”</th><td>Deliver the requested scope and preserve unrelated work.</td></tr>
+          <tr><th>“It rewrote comments nobody mentioned.”</th><td>Preserve comment density and avoid unrequested reports.</td></tr>
+          <tr><th>“It over-engineered everything.”</th><td>Choose the simplest complete robust solution.</td></tr>
+          <tr><th>“Concise meant lazy.”</th><td>No stubs, hardcodes, swallowed errors, or production shortcuts.</td></tr>
+          <tr><th>“Extra tools ate the budget.”</th><td>Six core tools by default; opt in to the rest.</td></tr>
+          <tr><th>“MCP discovered more than expected.”</th><td>Strict mode, with no unrelated discovery.</td></tr>
+          <tr><th>“Compaction forgot the objective.”</th><td>An editable handoff keeps objective and validation state.</td></tr>
+          <tr><th>“Defaults changed under me.”</th><td>Own the files and inspect every effective choice.</td></tr>
+        </tbody>
+      </table>
     </section>
 
     <section id="defaults">

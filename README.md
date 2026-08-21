@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-  Less surface. More shipping. A second launcher with concise, user-first defaults:
-  keep the useful Claude Code harness, remove the product noise, own every file, and
-  inspect the exact command before it runs.
+  Less surface. More shipping. A second launcher for Claude Code with concise,
+  user-owned defaults: questions stay questions, fixes stay focused, extras are explicit,
+  and you can inspect the exact command before it runs.
 </p>
 
 <p align="center">
@@ -64,6 +64,50 @@ claude
 
 Claude KISS does **not** replace `claude`, patch its binary, rewrite `~/.claude`, or change
 your existing Claude Code defaults.
+
+## What, why, and how
+
+**What:** Claude KISS is a transparent second launcher. It keeps Claude Code, but supplies
+a builder-first prompt, a smaller default tool surface, strict MCP behavior, explicit
+compaction control, and editable files you own.
+
+**Why:** recent Claude Code and Opus 5 discussions repeatedly describe a capable coding
+model wrapped in defaults that turn a small request into a project: scope creep,
+over-engineering, verbose narration, surprise tool use, context loss, and avoidable token
+burn. Claude KISS attacks that at the launcher layer instead of hiding it behind another
+framework.
+
+Public examples from the last three weeks include
+[“My Opus 5 experience in a nutshell”](https://www.reddit.com/r/ClaudeAI/comments/1vgpyni/my_opus_5_experience_in_a_nutshell/),
+[“Why does Opus 5 feel worse to work with?”](https://news.ycombinator.com/item?id=49296740),
+and
+[“Claude Code efficiency feels noticeably worse”](https://www.reddit.com/r/ClaudeCode/comments/1voaq2b/claude_code_efficiency_feels_noticeably_worse_aug/).
+
+| Recent frustration | Claude KISS response |
+|---|---|
+| “I asked a question; it edited files.” | Treat questions as questions. Edit only when asked. |
+| “A one-line fix became a refactor.” | Deliver the requested scope; preserve unrelated behavior, formatting, and user edits. |
+| “It rewrote comments or created reports I did not request.” | Preserve comment density; do not add comments, plans, or documentation unless needed or requested. |
+| “It over-engineered a simple change.” | Use the simplest complete robust solution; avoid speculative abstractions and frameworks. |
+| “Concise meant lazy or incomplete.” | KISS explicitly excludes stubs, TODOs, hardcoded results, swallowed errors, and production-path shortcuts. |
+| “Extra tools and agents burned the budget.” | Six core tools by default; add capabilities explicitly. |
+| “MCP discovered more than I intended.” | Strict MCP mode; no unrelated discovery unless you enable it. |
+| “After compaction, it forgot the objective.” | An editable handoff records the objective, acceptance criteria, validation state, and next action. |
+| “Vendor defaults drifted.” | User-owned prompt, settings, and memory; `doctor` reports where every choice came from. |
+| “Another wrapper wants custody of my setup.” | Ordinary `claude` and `~/.claude` remain untouched; there is no wrapper telemetry or auto-update. |
+
+**How:** install, inspect, then launch:
+
+```sh
+claude-kiss doctor
+claude-kiss
+claude-kiss init
+CLAUDE_KISS_DRY_RUN=1 claude-kiss
+```
+
+This is a launcher with strong defaults, not a promise that instructions are always obeyed
+or that a model bug can be prompted away. It also is not a sandbox: `Bash` remains
+powerful, and MCP must still be reviewed when enabled.
 
 ## What it does
 
