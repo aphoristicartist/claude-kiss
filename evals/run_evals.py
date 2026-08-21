@@ -342,8 +342,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--report",
-        default=str(REPO / "evals" / "RESULTS.md"),
-        help="human-readable Markdown report",
+        default=None,
+        help="human-readable Markdown report (default: RESULTS.md in --output-dir)",
     )
     parser.add_argument(
         "--dry-run",
@@ -759,6 +759,8 @@ def main() -> int:
     args = parse_args()
     task_names = selected_tasks(args.tasks)
     output = Path(args.output_dir)
+    if args.report is None:
+        args.report = str(output / "RESULTS.md")
     output.mkdir(parents=True, exist_ok=True)
 
     records: list[dict[str, Any]] = []

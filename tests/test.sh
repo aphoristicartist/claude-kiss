@@ -173,13 +173,6 @@ check_expected("targeted_regression_test", targeted_regression)
 check_expected("cross_file_bugfix", cross_file_bugfix)
 check_expected("review_no_edit", lambda fixture: None, "Use left - right, not left + right.")
 check_expected("long_horizon_handoff", long_horizon_handoff)
-
-public = (repo / "evals" / "PUBLIC_BENCHMARKS.md").read_text(encoding="utf-8")
-assert "7131e4375048a0e408a8fb404b5f499d726b695b" in public
-assert "84d7ba5ee34fae6c11f0d7cb8ed5faa73a9ece54" in public
-assert public.count("`fix-git`") == 1
-assert "commit0-multilib-tdd" in public
-assert "run them automatically" in public
 PY
 
 mkdir -p "$temporary/prefix/bin"

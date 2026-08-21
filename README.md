@@ -354,10 +354,8 @@ python3 evals/run_evals.py \
   --budget 1.0
 ```
 
-The checked-in snapshot is a four-task paired smoke run from 2026-08-20. Both launchers
-passed 4/4 tasks. KISS averaged 56.6% fewer result words, 49.5% fewer cache-read tokens,
-61.0% lower reported cost, and 29.1% less wall time, while using more agent turns. It is
-not statistical proof; the evaluator is included so you can reproduce or challenge it.
+Results are written to `evals/results/latest/` (gitignored) so every run stays
+reproducible instead of checked in and stale.
 
 ## Install options
 
