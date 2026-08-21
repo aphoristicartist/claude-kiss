@@ -65,6 +65,15 @@ claude
 Claude KISS does **not** replace `claude`, patch its binary, rewrite `~/.claude`, or change
 your existing Claude Code defaults.
 
+Sessions prompt for tool permissions by default. This deliberately overrides a global
+`dontAsk` mode, which silently denies edits and commands in otherwise interactive
+sessions. Opt out explicitly:
+
+```sh
+claude-kiss --dangerously-skip-permissions   # full bypass; you own the risk
+claude-kiss --permission-mode acceptEdits    # auto-approve file edits only
+```
+
 ## What, why, and how
 
 **What:** Claude KISS is a transparent second launcher. It keeps Claude Code, but supplies

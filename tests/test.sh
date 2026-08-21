@@ -244,6 +244,7 @@ CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" hello >"$temporary/dry-run.txt"
 grep -q '\[--setting-sources\] \[user\]' "$temporary/dry-run.txt"
+grep -q '\[--permission-mode\] \[default\]' "$temporary/dry-run.txt"
 grep -q -- '--strict-mcp-config' "$temporary/dry-run.txt"
 grep -q 'Bash,Glob,Grep,Read,Edit,Write' "$temporary/dry-run.txt"
 grep -q -- '--add-dir' "$temporary/dry-run.txt"
@@ -251,6 +252,22 @@ grep -q -- '--disallowedTools' "$temporary/dry-run.txt"
 grep -q '^compaction: kiss$' "$temporary/dry-run.txt"
 grep -q '^DISABLE_AUTO_COMPACT=0$' "$temporary/dry-run.txt"
 grep -q '^DISABLE_COMPACT=0$' "$temporary/dry-run.txt"
+
+CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --dangerously-skip-permissions \
+  >"$temporary/bypass-dry-run.txt"
+grep -q -- '--dangerously-skip-permissions' "$temporary/bypass-dry-run.txt"
+if grep -q -- '--permission-mode' "$temporary/bypass-dry-run.txt"; then
+  printf 'fail: bypass flag must suppress the default permission mode\n' >&2
+  exit 1
+fi
+
+CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --permission-mode acceptEdits \
+  >"$temporary/mode-dry-run.txt"
+grep -q '\[--permission-mode\] \[acceptEdits\]' "$temporary/mode-dry-run.txt"
+if grep -q '\[default\]' "$temporary/mode-dry-run.txt"; then
+  printf 'fail: explicit permission mode must not be overridden\n' >&2
+  exit 1
+fi
 if grep -q -- '--disable-slash-commands' "$temporary/dry-run.txt"; then
   printf 'error: slash commands must remain enabled by default for /model\n' >&2
   exit 1

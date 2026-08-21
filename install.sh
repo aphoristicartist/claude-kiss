@@ -123,7 +123,7 @@ claude --strict-mcp-config --disable-slash-commands --version >/dev/null 2>&1 ||
 }
 
 if [ ! -f "$source_dir/prompt/claude-kiss.md" ] || [ ! -f "$source_dir/config/settings.json" ]; then
-  release_version=${CLAUDE_KISS_VERSION:-0.6.0}
+  release_version=${CLAUDE_KISS_VERSION:-0.7.0}
   if [ -n "${CLAUDE_KISS_ARCHIVE:-}" ]; then
     archive=$CLAUDE_KISS_ARCHIVE
   else

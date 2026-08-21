@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-version="0.6.0"
+version="0.7.0"
 claude_bin="${CLAUDE_BIN:-claude}"
 default_home=__CLAUDE_KISS_DEFAULT_HOME__
 home="${CLAUDE_KISS_HOME:-$default_home}"
@@ -99,9 +99,11 @@ Useful overrides:
 
 Unless overridden, the wrapper replaces the vendor system prompt, uses the six core
 coding tools, removes bundled skills/workflows, disables MCP discovery, loads user
-settings so /model works, opts out of nonessential traffic, and leaves the normal
-`claude` command untouched. The default `kiss` compaction profile uses Claude's tuned
-automatic timing plus a concise editable compact-instructions memory.
+settings so /model works, prompts for tool permissions instead of silently denying
+them, opts out of nonessential traffic, and leaves the normal `claude` command
+untouched. Pass --dangerously-skip-permissions or --permission-mode to override.
+The default `kiss` compaction profile uses Claude's tuned automatic timing plus a
+concise editable compact-instructions memory.
 EOF
 }
 
@@ -189,6 +191,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'tools: %s\n' "$tools"
   printf 'tools source: %s\n' "$tools_source"
   printf 'compaction: %s\n' "$compact_profile"
+  printf 'permission mode: %s\n' "${CLAUDE_KISS_PERMISSION_MODE:-default}"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then
@@ -214,6 +217,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   check_claude_capability '--setting-sources' --setting-sources user
   check_claude_capability '--settings' --settings "$settings"
   check_claude_capability '--tools' --tools "$tools"
+  check_claude_capability '--permission-mode' --permission-mode default
   check_claude_capability '--autocompact' --autocompact auto
   check_claude_capability '--strict-mcp-config' --strict-mcp-config
   check_claude_capability '--disable-slash-commands' --disable-slash-commands
@@ -237,6 +241,7 @@ user_settings=0
 user_system_prompt=0
 user_tools=0
 user_autocompact=0
+user_permission_mode=0
 has_mcp_config=0
 for argument in "$@"; do
   case "$argument" in
@@ -245,6 +250,7 @@ for argument in "$@"; do
     --system-prompt|--system-prompt=*|--system-prompt-file|--system-prompt-file=*) user_system_prompt=1 ;;
     --tools|--tools=*) user_tools=1 ;;
     --autocompact|--autocompact=*) user_autocompact=1 ;;
+    --permission-mode|--permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
     --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
   esac
 done
@@ -271,6 +277,9 @@ if [ "$user_system_prompt" -eq 0 ]; then
 fi
 if [ "$user_tools" -eq 0 ]; then
   set -- --tools "$tools" "$@"
+fi
+if [ "$user_permission_mode" -eq 0 ]; then
+  set -- --permission-mode "${CLAUDE_KISS_PERMISSION_MODE:-default}" "$@"
 fi
 
 if [ "$load_compact_memory" -eq 1 ]; then
