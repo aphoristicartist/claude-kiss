@@ -57,7 +57,9 @@ tools=$core_tools
 [ "$web_enabled" -eq 0 ] || tools="$tools,WebFetch,WebSearch"
 [ "$skills_enabled" -eq 0 ] || tools="$tools,Skill"
 [ "$delegation_enabled" -eq 0 ] || tools="$tools,Agent"
-[ "$mcp_enabled" -eq 0 ] || tools="$tools,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers"
+# ToolSearch loads MCP tools deferred by tool search, which is on by default.
+# WaitForMcpServers is the same wait on deployments where tool search is off.
+[ "$mcp_enabled" -eq 0 ] || tools="$tools,ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers"
 compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
 compact_memory_source=managed
 if [ "${CLAUDE_KISS_COMPACT_MEMORY+x}" = x ]; then
@@ -110,7 +112,7 @@ Capabilities (off unless enabled; these four are the only ones):
   CLAUDE_KISS_WEB=1                WebFetch and WebSearch
   CLAUDE_KISS_SKILLS=1             Skill, so Claude can load your skills when relevant
   CLAUDE_KISS_DELEGATION=1         Agent, so Claude can run subagents
-  CLAUDE_KISS_MCP=1                MCP server discovery and MCP resource tools
+  CLAUDE_KISS_MCP=1                MCP server discovery, tool search, and resources
 
 Useful overrides:
   CLAUDE_BIN=path                  Claude executable (default: claude)
@@ -272,7 +274,7 @@ Add a capability for this session instead:
   CLAUDE_KISS_WEB=1          WebFetch and WebSearch
   CLAUDE_KISS_SKILLS=1       Skill
   CLAUDE_KISS_DELEGATION=1   Agent
-  CLAUDE_KISS_MCP=1          MCP discovery and resource tools
+  CLAUDE_KISS_MCP=1          MCP discovery, tool search, resources
 
 For Claude Code's full product surface, use the claude command.
 EOF

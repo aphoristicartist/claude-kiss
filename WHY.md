@@ -172,7 +172,7 @@ Four capabilities can be added for a task, and only four:
 CLAUDE_KISS_WEB=1 claude-kiss          # WebFetch, WebSearch
 CLAUDE_KISS_SKILLS=1 claude-kiss       # Skill
 CLAUDE_KISS_DELEGATION=1 claude-kiss   # Agent
-CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery and resource tools
+CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery, tool search, resources
 ```
 
 This is [MANIFESTO.md](MANIFESTO.md) §4: the right capability set is task-relative, so it
