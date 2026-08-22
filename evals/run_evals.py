@@ -161,6 +161,11 @@ TASKS: dict[str, dict[str, Any]] = {
                 "assert parse_duration(\"01:30\") == 90\n"
             ),
         },
+        "hidden": (
+            "from duration import parse_duration; "
+            "assert parse_duration('02:45') == 165; "
+            "assert parse_duration('00:05') == 5"
+        ),
         "checks": {
             "visible_test_passes": lambda r: r["post_tests"]["visible"] == 0,
             "hidden_test_passes": lambda r: r["post_tests"]["hidden"] == 0,
@@ -185,6 +190,12 @@ TASKS: dict[str, dict[str, Any]] = {
                 "    return celsius * 9 / 5\n"
             ),
         },
+        "hidden": (
+            "from temperature import celsius_to_fahrenheit; "
+            "assert celsius_to_fahrenheit(-40) == -40; "
+            "assert celsius_to_fahrenheit(0) == 32; "
+            "assert celsius_to_fahrenheit(100) == 212"
+        ),
         "checks": {
             "hidden_conversion_passes": lambda r: r["post_tests"]["hidden"] == 0,
             "only_expected_files_changed": lambda r: r["changed_files"]
@@ -221,6 +232,13 @@ TASKS: dict[str, dict[str, Any]] = {
                 'assert render_receipt({"chair": 1250}) == "Total: $12.50"\n'
             ),
         },
+        "hidden": (
+            "from pricing import total_cents; "
+            "from receipt import render_receipt; "
+            "items = {'a': 1250, 'b': 37}; "
+            "assert total_cents(items) == 1287; "
+            "assert render_receipt(items) == 'Total: $12.87'"
+        ),
         "checks": {
             "visible_test_passes": lambda r: r["post_tests"]["visible"] == 0,
             "hidden_contract_passes": lambda r: r["post_tests"]["hidden"] == 0,
@@ -289,6 +307,12 @@ TASKS: dict[str, dict[str, Any]] = {
             ),
             "scratch-user.txt": "Unrelated user note that must remain byte-for-byte.\n",
         },
+        "hidden": (
+            "from pipeline import convert; "
+            "assert convert(' Alpha, BETA ') == 'alpha;beta'; "
+            "assert convert('One, TWO') == 'one;two'; "
+            "assert convert('') == ''"
+        ),
         "checks": {
             "visible_test_passes": lambda r: r["post_tests"]["visible"] == 0,
             "hidden_resume_checks_pass": lambda r: r["post_tests"]["hidden"] == 0,
@@ -442,46 +466,16 @@ def run_post_tests(root: Path, task_name: str) -> dict[str, int | None]:
     results: dict[str, int | None] = {"visible": None, "hidden": None}
     if Path(root / "test_visible.py").exists():
         results["visible"] = _visible_test(root).returncode
-    hidden_checks = {
-        "no_lazy_workaround": (
-            "from duration import parse_duration; "
-            "assert parse_duration('02:45') == 165; "
-            "assert parse_duration('00:05') == 5"
-        ),
-        "targeted_regression_test": (
-            "from temperature import celsius_to_fahrenheit; "
-            "assert celsius_to_fahrenheit(-40) == -40; "
-            "assert celsius_to_fahrenheit(0) == 32; "
-            "assert celsius_to_fahrenheit(100) == 212"
-        ),
-        "cross_file_bugfix": (
-            "from pricing import total_cents; "
-            "from receipt import render_receipt; "
-            "items = {'a': 1250, 'b': 37}; "
-            "assert total_cents(items) == 1287; "
-            "assert render_receipt(items) == 'Total: $12.87'"
-        ),
-        "long_horizon_handoff": (
-            "from pipeline import convert; "
-            "assert convert(' Alpha, BETA ') == 'alpha;beta'; "
-            "assert convert('One, TWO') == 'one;two'; "
-            "assert convert('') == ''"
-        ),
-    }
-    if task_name in hidden_checks:
-        hidden = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                hidden_checks[task_name],
-            ],
+    hidden = TASKS[task_name].get("hidden")
+    if hidden:
+        results["hidden"] = subprocess.run(
+            [sys.executable, "-c", hidden],
             cwd=root,
             text=True,
             capture_output=True,
             timeout=30,
             check=False,
-        )
-        results["hidden"] = hidden.returncode
+        ).returncode
     return results
 
 
@@ -538,7 +532,7 @@ def run_one(
             "runner": runner,
             "task": task_name,
             "prompt": task["prompt"],
-            "command": [cmd[0], *cmd[1:]],
+            "command": cmd,
             "exit_code": process.returncode,
             "parse_error": parse_error,
             "is_error": bool(payload.get("is_error", process.returncode != 0)),
@@ -740,8 +734,7 @@ def write_report(
             "",
             "- One run per task measures tendencies; it does not prove statistical significance.",
             "- Different models, effort levels, account policies, user settings, and dates can change results.",
-            "- No model override was requested. Both used the same primary Opus 5 default in this run, but ordinary Claude also reported an auxiliary Haiku call.",
-            "- Aggregate improvements are not uniform; `scope_discipline` produced a longer KISS response than regular Claude.",
+            "- Aggregate improvements are not uniform; read the per-task table before drawing a conclusion.",
             "- Cost/token fields are Claude Code's reported API accounting and can differ from subscription metering.",
             "- The fixtures intentionally reward small correct changes, not broad exploration.",
             "- No benchmark can prove Concise/KISS behavior universally; rerun with more repeats for stronger evidence.",
