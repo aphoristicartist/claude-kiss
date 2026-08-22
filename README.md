@@ -14,7 +14,10 @@
 
 Claude KISS is a second launcher for the Claude Code you already have. Same binary, same
 account, same sessions — different defaults: a concise builder-first system prompt, six
-core tools, and nothing ambient you did not ask for.
+core tools, and nothing running that you did not ask for.
+
+It is for builders who want the model at full capability and the harness under their own
+control. Every default here is one you can read, print, edit, or override.
 
 Your normal `claude` command is left exactly as it was.
 
@@ -25,30 +28,52 @@ to day, that looks like:
 
 - you ask a question and files get edited;
 - a one-line fix arrives with a new abstraction, a summary document, and rewritten comments;
-- skills, connectors, and integrations load in every session whether or not the task needs them;
+- every session starts with skills, connectors, and integrations loaded, used or not;
 - a long session remembers all the activity and loses the objective.
 
 None of that is a model limitation. It is configuration — spread across a system prompt, a
 settings file, a tool list, and a dozen flags most people never pass.
 
-Claude KISS sets that configuration once, at the launcher layer, using Claude Code's own
-native flags. It is not a fork, a proxy, an agent framework, or a plugin marketplace. It is
-one shell script you can read, and you can print the exact command before it runs.
+Vendor defaults are not user requirements. A feature earns its place in your session by
+being useful for the task in front of you, not by having shipped in the box. Claude KISS
+inverts the default: sessions start lean, and you add capability deliberately.
 
-The design rules behind each choice are in [MANIFESTO.md](MANIFESTO.md). The short version:
-**keep every capability that earns its place; remove ambient behavior that does not.**
+It does that once, at the launcher layer, using Claude Code's own native flags. It is not a
+fork, a proxy, an agent framework, or a plugin marketplace. It is one shell script you can
+read, and you can print the exact command before it runs.
 
 | What you keep hitting | What Claude KISS does about it |
 |---|---|
 | “I asked a question; it edited files.” | Questions stay questions. Edits happen when you ask for edits. |
 | “A one-line fix became a refactor.” | Deliver the requested scope; preserve unrelated behavior, formatting, and comments. |
 | “It over-engineered a simple change.” | Simplest complete solution; no speculative abstractions or frameworks. |
-| “Concise just meant lazy.” | KISS explicitly excludes stubs, TODOs, hardcoded results, and swallowed errors. |
 | “Extra tools and agents burned the budget.” | Six core tools by default; everything else is one argument away. |
 | “After compaction it forgot the objective.” | An editable handoff policy records objective, acceptance criteria, and next action. |
 
 This is a launcher with strong defaults, not a guarantee that instructions are always
 obeyed. It cannot prompt away a model bug.
+
+## What KISS means here
+
+Keep It Simple, Stupid — pointed at the harness, not at your work:
+
+> The smallest **complete, robust** solution. Not minimal effort, not a stub, not a special
+> case that happens to pass one visible test.
+
+That cuts both ways, and both halves matter:
+
+- **For the model.** “Concise” is not permission to be lazy. The prompt rules out stubs,
+  TODOs, hardcoded results, swallowed errors, and production-path shortcuts. A short answer
+  that leaves the bug in place is not a KISS answer.
+- **For the launcher.** Fewer tools is not automatically better. Six clear tools the model
+  uses well beat four that force it to rebuild the missing one through `Bash`. Capability
+  stays; accidental complexity goes.
+
+The same rule applies to this project itself. It adds no telemetry, no auto-update, no
+marketplace, no plugin format, and no configuration language of its own. Where Claude Code
+already has a mechanism, Claude KISS uses it instead of inventing a competing one.
+
+The full design rules are in [MANIFESTO.md](MANIFESTO.md).
 
 ## Install
 
@@ -75,8 +100,7 @@ From a checkout, `./install.sh` does the same thing. Either way you get:
 ~/.config/claude-kiss         your files, once you run `claude-kiss init`
 ```
 
-Nothing touches `~/.claude`, `~/.claude.json`, or the `claude` command. There is no
-auto-update and no wrapper telemetry.
+Nothing touches `~/.claude`, `~/.claude.json`, or the `claude` command.
 
 Confirm the install, then start a session:
 
