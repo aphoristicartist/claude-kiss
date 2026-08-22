@@ -117,8 +117,8 @@ claude --autocompact auto --version >/dev/null 2>&1 || {
   printf 'Your Claude Code lacks or rejects --autocompact.\n' >&2
   exit 1
 }
-claude --strict-mcp-config --disable-slash-commands --version >/dev/null 2>&1 || {
-  printf 'Your Claude Code lacks or rejects the KISS tool/MCP/skill flags.\n' >&2
+claude --strict-mcp-config --disable-slash-commands --no-chrome --version >/dev/null 2>&1 || {
+  printf 'Your Claude Code lacks or rejects the KISS tool/MCP/skill/browser flags.\n' >&2
   exit 1
 }
 

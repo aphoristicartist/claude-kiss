@@ -36,6 +36,7 @@ assert settings["env"]["CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT"] == "1"
 assert "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" not in settings["env"]
 assert settings["autoMemoryEnabled"] is False
 assert settings["autoCompactEnabled"] is True
+assert settings["includeGitInstructions"] is False
 assert "## Compact Instructions" in Path("memory/CLAUDE.md").read_text()
 
 prompt = Path("prompt/claude-kiss.md").read_text()
@@ -246,6 +247,7 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
 grep -q '\[--setting-sources\] \[user\]' "$temporary/dry-run.txt"
 grep -q '\[--permission-mode\] \[default\]' "$temporary/dry-run.txt"
 grep -q -- '--strict-mcp-config' "$temporary/dry-run.txt"
+grep -q -- '--no-chrome' "$temporary/dry-run.txt"
 grep -q 'Bash,Glob,Grep,Read,Edit,Write' "$temporary/dry-run.txt"
 grep -q -- '--add-dir' "$temporary/dry-run.txt"
 grep -q -- '--disallowedTools' "$temporary/dry-run.txt"
@@ -270,6 +272,20 @@ if grep -q '\[default\]' "$temporary/mode-dry-run.txt"; then
 fi
 if grep -q -- '--disable-slash-commands' "$temporary/dry-run.txt"; then
   printf 'error: slash commands must remain enabled by default for /model\n' >&2
+  exit 1
+fi
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CHROME=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/chrome-enabled.txt"
+if grep -q -- '--no-chrome' "$temporary/chrome-enabled.txt"; then
+  printf 'error: CLAUDE_KISS_CHROME=1 must not disable the Chrome integration\n' >&2
+  exit 1
+fi
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --chrome >"$temporary/chrome-direct.txt"
+if grep -q -- '--no-chrome' "$temporary/chrome-direct.txt"; then
+  printf 'error: a direct --chrome argument must win over the KISS default\n' >&2
   exit 1
 fi
 
