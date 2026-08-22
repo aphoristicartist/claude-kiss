@@ -8,15 +8,15 @@ import ast
 import datetime as dt
 import json
 import os
-from pathlib import Path
 import re
 import statistics
 import subprocess
 import sys
 import tempfile
 import time
-from typing import Any, Callable
-
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_REGULAR = "claude"

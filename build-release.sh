@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-repo=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+repo=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 version=$(cat "$repo/VERSION")
 output="$repo/dist"
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-release.XXXXXX")
@@ -33,9 +33,8 @@ else
   checksum=$(shasum -a 256 "$archive" | awk '{print $1}')
 fi
 printf '%s\n' "$checksum" >"$output/claude-kiss.tar.gz.sha256"
-printf '%s\n' \
-  '{"version":"'$version'","archive":"https://claude-kiss.com/releases/v'$version'/claude-kiss.tar.gz","sha256":"'$checksum'"}' \
-  >"$output/release.json"
+printf '{"version":"%s","archive":"https://claude-kiss.com/releases/v%s/claude-kiss.tar.gz","sha256":"%s"}\n' \
+  "$version" "$version" "$checksum" >"$output/release.json"
 
 printf 'Built Claude KISS release %s\n' "$version"
 printf '  archive:  %s\n' "$archive"
