@@ -37,26 +37,10 @@ assert "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" not in settings["env"]
 assert settings["autoMemoryEnabled"] is False
 assert settings["autoCompactEnabled"] is True
 assert settings["includeGitInstructions"] is False
-assert "## Compact Instructions" in Path("memory/CLAUDE.md").read_text()
-
-prompt = Path("prompt/claude-kiss.md").read_text()
-assert "Treat a question as a request for an answer" in prompt
-assert "preserve its comment density" in prompt
-assert "report only an important finding, direction change, or blocker" in prompt
-assert "KISS is not minimal effort or a shortcut" in prompt
-assert "Fix the root cause at the appropriate layer" in prompt
-assert "lazy workaround" in prompt
-assert "Before compaction" in prompt
-assert "After compaction or a resumed session" in prompt
-assert "Do not replace the user's objective with a newly discovered subtask" in prompt
-assert "add or update focused tests" in prompt
-assert "Never ignore, skip, or weaken a relevant failing check" in prompt
-assert "never to hide the behavior under test" in prompt
-assert "<tone_preference>" in prompt
-
-compact = Path("memory/CLAUDE.md").read_text()
-assert "Required test coverage" in compact
-assert "design invariants" in compact
+# Prompt and compact-memory behavior is protected by evals/run_evals.py.
+# Asserting exact sentences here would freeze wording instead of outcomes.
+assert Path("prompt/claude-kiss.md").read_text().strip()
+assert Path("memory/CLAUDE.md").read_text().strip()
 
 launcher = Path("bin/claude-kiss").read_text()
 for forced_env in [
@@ -208,6 +192,22 @@ CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
 grep -q '^prompt source: user$' "$temporary/user-doctor.txt"
 grep -q '^settings source: user$' "$temporary/user-doctor.txt"
 grep -q '^compact memory source: user$' "$temporary/user-doctor.txt"
+grep -q '^subagents: unavailable$' "$temporary/user-doctor.txt"
+grep -q '^web search: unavailable$' "$temporary/user-doctor.txt"
+grep -q '^web fetch: unavailable$' "$temporary/user-doctor.txt"
+grep -q '^mcp: strict (no discovery)$' "$temporary/user-doctor.txt"
+grep -q '^chrome: disabled$' "$temporary/user-doctor.txt"
+grep -q '^skills and slash commands: enabled$' "$temporary/user-doctor.txt"
+
+CLAUDE_KISS_TOOLS=default CLAUDE_KISS_MCP=1 CLAUDE_KISS_CHROME=1 \
+  CLAUDE_KISS_DISABLE_COMMANDS=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" doctor \
+  >"$temporary/opt-in-doctor.txt"
+grep -q '^subagents: available$' "$temporary/opt-in-doctor.txt"
+grep -q '^web search: available$' "$temporary/opt-in-doctor.txt"
+grep -q '^mcp: normal discovery$' "$temporary/opt-in-doctor.txt"
+grep -q '^chrome: enabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^skills and slash commands: disabled$' "$temporary/opt-in-doctor.txt"
 
 environment_prompt="$temporary/environment-prompt.md"
 cp "$user_config/prompt.md" "$environment_prompt"

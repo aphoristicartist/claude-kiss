@@ -68,6 +68,17 @@ init_user_config() {
   printf 'created: %s\n' "$target_file"
 }
 
+tool_state() {
+  if [ "$tools" = default ]; then
+    printf 'available\n'
+    return
+  fi
+  case ",$tools," in
+    *",$1,"*) printf 'available\n' ;;
+    *) printf 'unavailable\n' ;;
+  esac
+}
+
 print_help() {
   cat <<'EOF'
 claude-kiss — Claude Code with a concise user-first prompt and a lean tool surface
@@ -192,6 +203,18 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'settings source: %s\n' "$settings_source"
   printf 'tools: %s\n' "$tools"
   printf 'tools source: %s\n' "$tools_source"
+  printf 'subagents: %s\n' "$(tool_state Agent)"
+  printf 'web search: %s\n' "$(tool_state WebSearch)"
+  printf 'web fetch: %s\n' "$(tool_state WebFetch)"
+  mcp_state='strict (no discovery)'
+  [ "${CLAUDE_KISS_MCP:-0}" != "1" ] || mcp_state='normal discovery'
+  chrome_state=disabled
+  [ "${CLAUDE_KISS_CHROME:-0}" != "1" ] || chrome_state=enabled
+  commands_state=enabled
+  [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" != "1" ] || commands_state=disabled
+  printf 'mcp: %s\n' "$mcp_state"
+  printf 'chrome: %s\n' "$chrome_state"
+  printf 'skills and slash commands: %s\n' "$commands_state"
   printf 'compaction: %s\n' "$compact_profile"
   printf 'permission mode: %s\n' "${CLAUDE_KISS_PERMISSION_MODE:-default}"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"

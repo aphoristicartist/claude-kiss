@@ -78,7 +78,8 @@ claude-kiss --permission-mode acceptEdits    # auto-approve file edits only
 
 **What:** Claude KISS is a transparent second launcher. It keeps Claude Code, but supplies
 a builder-first prompt, a smaller default tool surface, strict MCP behavior, explicit
-compaction control, and editable files you own.
+compaction control, and editable files you own. The design rules behind those choices are
+written down in [MANIFESTO.md](MANIFESTO.md).
 
 **Why:** recent Claude Code and Opus 5 discussions repeatedly describe a capable coding
 model wrapped in defaults that turn a small request into a project: scope creep,
