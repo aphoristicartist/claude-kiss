@@ -270,7 +270,7 @@ CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" hello >"$temporary/dry-run.txt"
-grep -q '\[--setting-sources\] \[user\]' "$temporary/dry-run.txt"
+grep -q '\[--setting-sources\] \[user,project,local\]' "$temporary/dry-run.txt"
 grep -q '\[--permission-mode\] \[default\]' "$temporary/dry-run.txt"
 grep -q -- '--strict-mcp-config' "$temporary/dry-run.txt"
 grep -q -- '--no-chrome' "$temporary/dry-run.txt"
@@ -381,7 +381,7 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" --setting-sources user,project \
   >"$temporary/setting-sources.txt"
 grep -q '\[--setting-sources\] \[user,project\]' "$temporary/setting-sources.txt"
-refute "$temporary/setting-sources.txt" '\[--setting-sources\] \[user\]' \
+refute "$temporary/setting-sources.txt" '\[--setting-sources\] \[user,project,local\]' \
   'a direct --setting-sources argument must not be paired with the KISS default'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CLAUDE_MD=0 CLAUDE_KISS_HOME="$repo_dir" \
@@ -395,9 +395,10 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_ISOLATED=1 CLAUDE_CONFIG_DIR="$isolated_config
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" >/dev/null
 [ -d "$isolated_config" ]
 
-# doctor must name the user-scope settings file that --setting-sources user still loads.
+# doctor must report the effective setting sources and name the user-scope settings file.
 CLAUDE_CONFIG_DIR="$isolated_config" CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" doctor >"$temporary/config-dir-doctor.txt"
+grep -q '^setting sources: user,project,local$' "$temporary/config-dir-doctor.txt"
 grep -q "^user settings: $isolated_config/settings.json\$" \
   "$temporary/config-dir-doctor.txt"
 
