@@ -314,7 +314,12 @@ grep -q '\[--tools\] \[Bash,Glob,Grep,Read,Edit,Write,Skill\]' "$temporary/skill
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_MCP=1 \
   "$repo_dir/bin/claude-kiss" >"$temporary/mcp-tools.txt"
-grep -q 'ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers\]' "$temporary/mcp-tools.txt"
+# ToolSearch must ship with MCP: tool search is on by default, so without it a session
+# can see a server's deferred tool names but cannot load them.
+grep -q 'ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers\]' \
+  "$temporary/mcp-tools.txt"
+refute "$temporary/web.txt" 'ToolSearch' \
+  'ToolSearch must belong to the MCP capability, not to any other switch'
 
 # Chrome is not one of the four, so it stays off no matter what.
 grep -q -- '--no-chrome' "$temporary/web.txt"
