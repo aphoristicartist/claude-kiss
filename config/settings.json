@@ -6,6 +6,7 @@
   "disableClaudeAiConnectors": true,
   "disableRemoteControl": true,
   "disableWorkflows": true,
+  "syncClaudeAiSkills": false,
   "includeGitInstructions": false,
   "autoMemoryEnabled": false,
   "spinnerTipsEnabled": false,
