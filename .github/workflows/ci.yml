@@ -7,6 +7,18 @@ on:
   workflow_call:
 
 jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: ShellCheck
+        run: shellcheck bin/claude-kiss install.sh tests/test.sh build-release.sh
+
+      - name: Ruff
+        run: pipx run --spec ruff==0.16.4 ruff check evals/run_evals.py
+
   test:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -15,9 +27,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
 
@@ -26,7 +38,7 @@ jobs:
 
       - name: Syntax checks
         run: |
-          sh -n bin/claude-kiss install.sh tests/test.sh
+          sh -n bin/claude-kiss install.sh tests/test.sh build-release.sh
           python3 -m py_compile evals/run_evals.py
           python3 -m json.tool config/settings.json >/dev/null
 

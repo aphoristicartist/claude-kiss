@@ -1,15 +1,41 @@
 #!/bin/sh
 set -eu
 
-repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+repo_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-test.XXXXXX")
 version=$(cat "$repo_dir/VERSION")
 generated_release="$repo_dir/dist"
 trap 'rm -rf "$temporary" "$generated_release"' EXIT HUP INT TERM
+
+expect_status() {
+  expected_status=$1
+  shift
+  actual_status=0
+  "$@" >/dev/null 2>&1 || actual_status=$?
+  [ "$actual_status" -eq "$expected_status" ] || {
+    printf 'error: expected exit %s, got %s: %s\n' \
+      "$expected_status" "$actual_status" "$*" >&2
+    exit 1
+  }
+}
+
+# A dry run prints the argv on its first line and resolution details after it.
+argv_of() {
+  head -n 1 "$1"
+}
+
+refute() {
+  if grep -q -- "$2" "$1"; then
+    printf 'error: %s\n' "$3" >&2
+    exit 1
+  fi
+}
+
 grep -q "version=\"$version\"" "$repo_dir/bin/claude-kiss"
 grep -q "release_version=\${CLAUDE_KISS_VERSION:-$version}" "$repo_dir/install.sh"
 grep -q 'https://claude-kiss.com/install.sh' "$repo_dir/README.md"
 grep -q 'https://github.com/aphoristicartist/claude-kiss' "$repo_dir/install.sh"
+# shellcheck disable=SC2016  # The literal shell variable name is the thing being matched.
 grep -q 'https://claude-kiss.com/releases/v$release_version/claude-kiss.tar.gz' \
   "$repo_dir/install.sh"
 grep -q 'source.sha256' "$repo_dir/install.sh"
@@ -174,7 +200,7 @@ CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" init >"$temporary/init-again.txt"
 grep -q '^exists:' "$temporary/init-again.txt"
 grep -q '^owned prompt$' "$user_config/prompt.md"
-user_memory=$(CDPATH= cd -- "$user_memory" && pwd -P)
+user_memory=$(CDPATH='' cd -- "$user_memory" && pwd -P)
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
@@ -182,10 +208,8 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
 grep -F -- "$user_config/prompt.md" "$temporary/user-dry-run.txt" >/dev/null
 grep -F -- "$user_config/settings.json" "$temporary/user-dry-run.txt" >/dev/null
 grep -F -- "$user_memory" "$temporary/user-dry-run.txt" >/dev/null
-if grep -q -- 'Read(//' "$temporary/user-dry-run.txt"; then
-  printf 'error: compact memory tool pattern contains a double slash\n' >&2
-  exit 1
-fi
+refute "$temporary/user-dry-run.txt" 'Read(//' \
+  'compact memory tool pattern contains a double slash'
 
 CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" doctor >"$temporary/user-doctor.txt"
@@ -258,36 +282,26 @@ grep -q '^DISABLE_COMPACT=0$' "$temporary/dry-run.txt"
 CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --dangerously-skip-permissions \
   >"$temporary/bypass-dry-run.txt"
 grep -q -- '--dangerously-skip-permissions' "$temporary/bypass-dry-run.txt"
-if grep -q -- '--permission-mode' "$temporary/bypass-dry-run.txt"; then
-  printf 'fail: bypass flag must suppress the default permission mode\n' >&2
-  exit 1
-fi
+refute "$temporary/bypass-dry-run.txt" '--permission-mode' \
+  'bypass flag must suppress the default permission mode'
 
 CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --permission-mode acceptEdits \
   >"$temporary/mode-dry-run.txt"
 grep -q '\[--permission-mode\] \[acceptEdits\]' "$temporary/mode-dry-run.txt"
-if grep -q '\[default\]' "$temporary/mode-dry-run.txt"; then
-  printf 'fail: explicit permission mode must not be overridden\n' >&2
-  exit 1
-fi
-if grep -q -- '--disable-slash-commands' "$temporary/dry-run.txt"; then
-  printf 'error: slash commands must remain enabled by default for /model\n' >&2
-  exit 1
-fi
+refute "$temporary/mode-dry-run.txt" '\[default\]' \
+  'explicit permission mode must not be overridden'
+refute "$temporary/dry-run.txt" '--disable-slash-commands' \
+  'slash commands must remain enabled by default for /model'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CHROME=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" >"$temporary/chrome-enabled.txt"
-if grep -q -- '--no-chrome' "$temporary/chrome-enabled.txt"; then
-  printf 'error: CLAUDE_KISS_CHROME=1 must not disable the Chrome integration\n' >&2
-  exit 1
-fi
+refute "$temporary/chrome-enabled.txt" '--no-chrome' \
+  'CLAUDE_KISS_CHROME=1 must not disable the Chrome integration'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" --chrome >"$temporary/chrome-direct.txt"
-if grep -q -- '--no-chrome' "$temporary/chrome-direct.txt"; then
-  printf 'error: a direct --chrome argument must win over the KISS default\n' >&2
-  exit 1
-fi
+refute "$temporary/chrome-direct.txt" '--no-chrome' \
+  'a direct --chrome argument must win over the KISS default'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_DISABLE_COMMANDS=1 \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
@@ -310,23 +324,17 @@ for profile in plain early manual off; do
     CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
     >"$temporary/$profile.txt"
 done
-if grep -q -- '--add-dir' "$temporary/plain.txt"; then
-  printf 'error: plain compaction must not load KISS compact memory\n' >&2
-  exit 1
-fi
-if grep -q -- '--autocompact' "$temporary/plain.txt"; then
-  printf 'error: plain compaction must use the model default window\n' >&2
-  exit 1
-fi
+refute "$temporary/plain.txt" '--add-dir' \
+  'plain compaction must not load KISS compact memory'
+refute "$temporary/plain.txt" '--autocompact' \
+  'plain compaction must use the model default window'
 grep -q '^DISABLE_AUTO_COMPACT=1$' "$temporary/manual.txt"
 grep -q '^DISABLE_COMPACT=0$' "$temporary/manual.txt"
 grep -q -- '--add-dir' "$temporary/manual.txt"
 grep -q '^DISABLE_AUTO_COMPACT=1$' "$temporary/off.txt"
 grep -q '^DISABLE_COMPACT=1$' "$temporary/off.txt"
-if grep -q -- '--add-dir' "$temporary/off.txt"; then
-  printf 'error: disabled compaction must not load compact memory\n' >&2
-  exit 1
-fi
+refute "$temporary/off.txt" '--add-dir' \
+  'disabled compaction must not load compact memory'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT=early CLAUDE_KISS_AUTOCOMPACT=400k \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
@@ -338,6 +346,122 @@ if CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT=wrong CLAUDE_KISS_HOME="$repo_dir" 
   printf 'error: invalid compaction profile must fail\n' >&2
   exit 1
 fi
+
+# A direct Claude argument must suppress the matching KISS default.
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --tools Read >"$temporary/direct-tools.txt"
+argv_of "$temporary/direct-tools.txt" >"$temporary/direct-tools.cmd"
+grep -q '\[--tools\] \[Read\]' "$temporary/direct-tools.cmd"
+refute "$temporary/direct-tools.cmd" 'Bash,Glob,Grep,Read,Edit,Write' \
+  'a direct --tools argument must not be paired with the KISS default list'
+
+direct_prompt="$temporary/direct-prompt.md"
+printf 'direct prompt\n' >"$direct_prompt"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --system-prompt-file "$direct_prompt" \
+  >"$temporary/direct-prompt.txt"
+argv_of "$temporary/direct-prompt.txt" >"$temporary/direct-prompt.cmd"
+grep -F -q -- "$direct_prompt" "$temporary/direct-prompt.cmd"
+refute "$temporary/direct-prompt.cmd" 'prompt/claude-kiss.md' \
+  'a direct --system-prompt-file argument must not be paired with the managed prompt'
+
+direct_settings="$temporary/direct-settings.json"
+printf '{}\n' >"$direct_settings"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --settings "$direct_settings" \
+  >"$temporary/direct-settings.txt"
+argv_of "$temporary/direct-settings.txt" >"$temporary/direct-settings.cmd"
+grep -F -q -- "$direct_settings" "$temporary/direct-settings.cmd"
+refute "$temporary/direct-settings.cmd" 'config/settings.json' \
+  'a direct --settings argument must not be paired with the managed settings'
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --mcp-config ./mcp.json >"$temporary/direct-mcp.txt"
+grep -q -- '--strict-mcp-config' "$temporary/direct-mcp.txt"
+refute "$temporary/direct-mcp.txt" 'mcpServers' \
+  'a direct --mcp-config argument must not be paired with the empty KISS config'
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_MCP=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/mcp-enabled.txt"
+refute "$temporary/mcp-enabled.txt" 'strict-mcp-config' \
+  'CLAUDE_KISS_MCP=1 must restore normal MCP discovery'
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_SETTING_SOURCES=user,project \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
+  >"$temporary/setting-sources.txt"
+grep -q '\[--setting-sources\] \[user,project\]' "$temporary/setting-sources.txt"
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CLAUDE_MD=0 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/no-claude-md.txt"
+grep -q '^compact memory: disabled$' "$temporary/no-claude-md.txt"
+refute "$temporary/no-claude-md.txt" '--add-dir' \
+  'CLAUDE_KISS_CLAUDE_MD=0 must not load compact memory'
+
+isolated_config="$temporary/isolated-config"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_ISOLATED=1 CLAUDE_KISS_CONFIG_DIR="$isolated_config" \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" >/dev/null
+[ -d "$isolated_config" ]
+
+"$repo_dir/bin/claude-kiss" --version >"$temporary/version.txt"
+grep -q "^claude-kiss $version\$" "$temporary/version.txt"
+
+# Missing capabilities must fail loudly instead of falling back silently.
+expect_status 127 env CLAUDE_BIN="$temporary/no-such-claude" "$repo_dir/bin/claude-kiss"
+expect_status 1 env CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_PROMPT="$temporary/missing-prompt.md" "$repo_dir/bin/claude-kiss"
+expect_status 1 env CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_SETTINGS="$temporary/missing-settings.json" "$repo_dir/bin/claude-kiss"
+expect_status 1 env CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_COMPACT_MEMORY="$temporary" "$repo_dir/bin/claude-kiss"
+expect_status 2 env CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_CONFIG_HOME="$user_config" \
+  "$repo_dir/bin/claude-kiss" init extra-argument
+
+# The wrapper must exec Claude with the composed argv, and leave auth alone.
+stub_claude="$temporary/stub-claude"
+cat >"$stub_claude" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$@" >"$STUB_LOG"
+STUB
+chmod +x "$stub_claude"
+
+STUB_LOG="$temporary/stub-launch.txt" CLAUDE_BIN="$stub_claude" \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" hello
+grep -q -- '^--system-prompt-file$' "$temporary/stub-launch.txt"
+grep -q '^hello$' "$temporary/stub-launch.txt"
+
+STUB_LOG="$temporary/stub-auth.txt" CLAUDE_BIN="$stub_claude" \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" auth login
+grep -q '^auth$' "$temporary/stub-auth.txt"
+grep -q '^login$' "$temporary/stub-auth.txt"
+refute "$temporary/stub-auth.txt" 'system-prompt-file' \
+  'auth must pass through without KISS session flags'
+
+# Installer guardrails must reject unsafe or malformed invocations.
+expect_status 2 "$repo_dir/install.sh" --prefix "$temporary/unsafe" --data-dir /
+expect_status 2 env HOME="$temporary/fake-home" "$repo_dir/install.sh" \
+  --prefix "$temporary/unsafe" --data-dir "$temporary/fake-home"
+expect_status 2 "$repo_dir/install.sh" --unknown-option
+expect_status 2 "$repo_dir/install.sh" --prefix
+[ ! -e "$temporary/unsafe" ]
+
+"$repo_dir/install.sh" --prefix "$temporary/empty-prefix" \
+  --data-dir "$temporary/empty-data" --uninstall >"$temporary/uninstall-empty.txt"
+grep -q 'No claude-kiss installation found' "$temporary/uninstall-empty.txt"
+
+python3 - "$repo_dir" "$generated_release" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+repo, release = Path(sys.argv[1]), Path(sys.argv[2])
+meta = json.loads((release / "release.json").read_text())
+archive = (release / "claude-kiss.tar.gz").read_bytes()
+assert meta["version"] == (repo / "VERSION").read_text().strip()
+assert meta["sha256"] == hashlib.sha256(archive).hexdigest()
+assert meta["sha256"] == (release / "claude-kiss.tar.gz.sha256").read_text().strip()
+assert meta["archive"].endswith(f"v{meta['version']}/claude-kiss.tar.gz")
+PY
 
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   "$repo_dir/install.sh" --prefix "$temporary/prefix" --uninstall >/dev/null

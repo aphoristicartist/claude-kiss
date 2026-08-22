@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+source_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 source_temporary=""
 temporary=""
 executable_temporary=""
@@ -214,10 +214,12 @@ if [ "$modify_path" = true ]; then
     *":$prefix/bin:"*) ;;
     *)
       printf '\nWarning: %s/bin is not in PATH. Add it, for example:\n' "$prefix" >&2
+      # shellcheck disable=SC2016  # $PATH is printed literally for the user to copy.
       printf '  export PATH="%s/bin:$PATH"\n' "$prefix" >&2
       ;;
   esac
 fi
 
 printf '\nRun:\n  claude-kiss\n'
+# shellcheck disable=SC2016  # Backticks are literal punctuation, not substitution.
 printf 'The normal `claude` command remains unchanged.\n'

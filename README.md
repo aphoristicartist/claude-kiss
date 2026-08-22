@@ -419,6 +419,7 @@ Your `~/.config/claude-kiss` directory remains.
 - Claude Code CLI with support for the native flags listed by `claude-kiss doctor`
 - `curl` or `wget` only for standalone installation
 - Python 3 only for the optional evaluator and repository tests
+- `shellcheck` and `ruff` only for linting
 
 ## Release archive
 
@@ -439,8 +440,16 @@ python3 -m py_compile evals/run_evals.py
 python3 -m json.tool config/settings.json
 ```
 
-The tests cover launcher arguments, user-owned configuration, installer update/uninstall
-behavior, release packaging, settings invariants, compaction modes, and evaluator checks.
+The tests cover launcher argument precedence, user-owned configuration, failure paths,
+`exec` and `auth` passthrough, installer guardrails and update/uninstall behavior, release
+packaging and metadata, settings invariants, compaction modes, and evaluator checks.
+
+Linting is the same pair CI runs, and both tools are optional locally:
+
+```sh
+shellcheck bin/claude-kiss install.sh tests/test.sh build-release.sh
+ruff check evals/run_evals.py
+```
 
 ## Why no profiles?
 

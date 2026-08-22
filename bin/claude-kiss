@@ -7,7 +7,7 @@ default_home=__CLAUDE_KISS_DEFAULT_HOME__
 home="${CLAUDE_KISS_HOME:-$default_home}"
 
 if [ ! -f "$home/prompt/claude-kiss.md" ] || [ ! -f "$home/config/settings.json" ]; then
-  script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+  script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
   for candidate in "$script_dir/../share/claude-kiss" "$script_dir/.." "$HOME/.local/share/claude-kiss"; do
     if [ -f "$candidate/prompt/claude-kiss.md" ] && [ -f "$candidate/config/settings.json" ]; then
       home=$candidate
@@ -16,7 +16,7 @@ if [ ! -f "$home/prompt/claude-kiss.md" ] || [ ! -f "$home/config/settings.json"
   done
 fi
 
-home=$(CDPATH= cd -- "$home" && pwd -P)
+home=$(CDPATH='' cd -- "$home" && pwd -P)
 config_home="${CLAUDE_KISS_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/claude-kiss}"
 prompt="${CLAUDE_KISS_PROMPT:-$home/prompt/claude-kiss.md}"
 prompt_source=managed
@@ -190,7 +190,7 @@ if [ "$load_compact_memory" -eq 1 ] && { [ ! -d "$compact_memory" ] || [ ! -f "$
   exit 1
 fi
 if [ "$load_compact_memory" -eq 1 ]; then
-  compact_memory=$(CDPATH= cd -- "$compact_memory" && pwd -P)
+  compact_memory=$(CDPATH='' cd -- "$compact_memory" && pwd -P)
 fi
 
 if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
