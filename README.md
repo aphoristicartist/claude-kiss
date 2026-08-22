@@ -138,25 +138,26 @@ validate. You do not need to spell that out on every request. Say what is wrong 
 
 ### Add capability per task, not forever
 
-The default tools are the coding set: `Bash`, `Glob`, `Grep`, `Read`, `Edit`, `Write`.
-When a task genuinely needs more, ask for more — for that task.
+Sessions start with the coding set: `Bash`, `Glob`, `Grep`, `Read`, `Edit`, `Write`. Four
+capabilities can be added for a task. These four are the whole list.
 
 ```sh
-# research session with web access
-CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch claude-kiss
-
-# let it delegate to subagents
-CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,Agent claude-kiss
-
-# Claude's full built-in surface
-CLAUDE_KISS_TOOLS=default claude-kiss
+CLAUDE_KISS_WEB=1 claude-kiss          # WebFetch, WebSearch
+CLAUDE_KISS_SKILLS=1 claude-kiss       # Skill
+CLAUDE_KISS_DELEGATION=1 claude-kiss   # Agent
+CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery and resource tools
 ```
 
-There is no profile system to learn, because your shell already has one:
+They combine, and there is no profile system to learn because your shell already has one:
 
 ```sh
-alias ck-research='CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch claude-kiss'
+alias ck-research='CLAUDE_KISS_WEB=1 claude-kiss'
+alias ck-wide='CLAUDE_KISS_WEB=1 CLAUDE_KISS_DELEGATION=1 claude-kiss'
 ```
+
+There is no switch that turns everything on, and `--tools` is rejected rather than passed
+through. If you want Claude Code's full product surface, that product already exists and is
+called `claude`. See [Capabilities](#capabilities) for what stays off.
 
 ### Choose the right permission mode
 
@@ -216,14 +217,14 @@ compact-policy path. No hidden runtime, nothing to reverse-engineer.
 | Area | Ordinary Claude Code | Claude KISS |
 |---|---|---|
 | System prompt | Vendor default | Concise builder-first replacement |
-| Built-in tools | Broad default surface | Six core coding tools |
-| Bundled skills and workflows | Available | Disabled |
+| Built-in tools | 45-tool default surface | Six, plus four capabilities you can add |
+| Bundled skills and workflows | Available | Disabled, with no way to re-enable |
+| Plugin marketplace, claude.ai skill sync | Available | Disabled |
 | Agent view, artifacts, connectors, remote control | Available | Disabled |
-| MCP | Normal discovery | Strict; no discovery unless you enable it |
+| MCP | Normal discovery | Strict, unless `CLAUDE_KISS_MCP=1` |
 | Claude in Chrome | Connects when available | Disabled |
 | Git instructions and status snapshot | In the system prompt | Removed |
-| Project and local settings | Loaded | Skipped by default |
-| User settings | Loaded | Loaded, so `/model` and your account defaults still work |
+| User, project, and local settings | Loaded | Loaded, so `/model`, your account defaults, and per-repository configuration still work |
 | Auto memory | Vendor default | Disabled |
 | Commit and PR attribution | Added | Removed |
 | Telemetry, surveys, error reports, auto-update | Vendor defaults | Opted out |
@@ -239,15 +240,20 @@ direct Claude CLI argument  >  CLAUDE_KISS_* variable  >  your file  >  managed 
 ```
 
 Pass a native Claude argument and it replaces the matching KISS default rather than
-fighting it: `--tools`, `--system-prompt-file`, `--settings`, `--setting-sources`,
-`--permission-mode`, `--mcp-config`, `--chrome`. Everything else passes straight through.
+fighting it: `--system-prompt-file`, `--settings`, `--setting-sources`, `--permission-mode`,
+`--mcp-config`. Everything else passes straight through.
+
+Two arguments are refused with a non-zero exit rather than honoured: `--tools` and
+`--chrome`. Both would widen the surface past the four capabilities, which is the one thing
+this launcher exists to prevent. It says so and stops, instead of silently ignoring you.
 
 | Variable | Effect |
 |---|---|
-| `CLAUDE_KISS_TOOLS=list` | Built-in tool list, or `default` for Claude's full set |
-| `CLAUDE_KISS_MCP=1` | Restore normal MCP discovery |
-| `CLAUDE_KISS_CHROME=1` | Restore the Claude in Chrome integration |
-| `CLAUDE_KISS_DISABLE_COMMANDS=1` | Disable all skills and slash commands |
+| `CLAUDE_KISS_WEB=1` | Add `WebFetch` and `WebSearch` |
+| `CLAUDE_KISS_SKILLS=1` | Add `Skill`, so Claude can load your skills when relevant |
+| `CLAUDE_KISS_DELEGATION=1` | Add `Agent`, so Claude can run subagents |
+| `CLAUDE_KISS_MCP=1` | Restore MCP discovery and add the MCP resource tools |
+| `CLAUDE_KISS_DISABLE_COMMANDS=1` | Also stop you typing `/skill-name` yourself |
 | `CLAUDE_KISS_CLAUDE_MD=0` | Do not load `CLAUDE.md` memory files |
 | `CLAUDE_KISS_COMPACT_MEMORY=path` | Use another compact policy directory, or `0` to skip it |
 | `CLAUDE_KISS_PROMPT=path` | Replacement system-prompt file |
@@ -260,6 +266,57 @@ fighting it: `--tools`, `--system-prompt-file`, `--settings`, `--setting-sources
 Run `claude-kiss --help` for the full list, or `claude-kiss doctor` to see which value is
 actually in effect and where it came from.
 
+### Capabilities
+
+Claude Code ships 45 built-in tools. Claude KISS starts with six and can add four things.
+A tool that is not named in `--tools` is unavailable for the session, not merely discouraged.
+
+**Always on — the coding set**
+
+| Tool | What it does |
+|---|---|
+| `Bash` | Runs shell commands |
+| `Glob` | Finds files by pattern |
+| `Grep` | Searches file contents |
+| `Read` | Reads files |
+| `Edit` | Makes targeted edits |
+| `Write` | Creates or overwrites files |
+
+**Available on request — the only four**
+
+| Variable | Adds | For |
+|---|---|---|
+| `CLAUDE_KISS_WEB=1` | `WebFetch`, `WebSearch` | Research, current documentation |
+| `CLAUDE_KISS_SKILLS=1` | `Skill` | Letting Claude load *your* skills when relevant |
+| `CLAUDE_KISS_DELEGATION=1` | `Agent` | Genuinely independent parallel work |
+| `CLAUDE_KISS_MCP=1` | MCP discovery, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `WaitForMcpServers` | Tools and data behind an MCP server |
+
+**Off, permanently**
+
+Everything below stays off in every KISS session. There is no variable, flag, or settings
+key in this project that turns any of it on.
+
+| Group | Tools |
+|---|---|
+| Vendor orchestration | `Workflow`, `SendMessage`, `ListAgents` |
+| Planning and task tracking | `EnterPlanMode`, `ExitPlanMode`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskOutput`, `TaskStop`, `TodoWrite` |
+| claude.ai surface | `Artifact`, `RemoteTrigger`, `PushNotification`, `SendUserFile`, `ShareOnboardingGuide` |
+| Scheduling and background work | `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `Monitor` |
+| Git worktrees | `EnterWorktree`, `ExitWorktree` |
+| Editors and language servers | `NotebookEdit`, `LSP`, `PowerShell` |
+| Conversation control | `AskUserQuestion`, `EndConversation`, `ReportFindings` |
+| Deferred tool loading | `ToolSearch` |
+
+Alongside the tools, Anthropic's own content stays off regardless of any capability you
+enable: bundled skills and workflows, plugin marketplace autoinstall, claude.ai skill sync,
+artifacts, connectors, agent view, remote control, and Claude in Chrome. Turning skills on
+lets Claude reach *your* skills. It does not bring back `/code-review` and friends.
+
+Claude Code itself no longer provides the task-tracking tools by default on current models,
+so that row is largely already off upstream rather than something this launcher takes away.
+
+`claude-kiss doctor` reports which capabilities are live, so you never have to infer it.
+
 ## Trust boundary
 
 Claude KISS reduces the default product surface. It is not a sandbox, and pretending
@@ -268,9 +325,11 @@ otherwise would be worse than useless:
 - `Bash` is still available and still powerful.
 - Tool limits shape attention and behavior; they are not filesystem isolation.
 - MCP is hidden unless you enable it. Hiding it does not make a server safe.
-- Your own user settings are still loaded, so hooks in `~/.claude/settings.json` still run
-  and your own skills stay available. Subagents need the `Agent` tool, which is not in the
-  default list.
+- User, project, and local settings are all loaded, so hooks in `~/.claude/settings.json`
+  and in a repository's `.claude/settings.json` still run, and your own skills stay
+  available. Claude Code's own trust prompt is what gates a first-time directory, not this
+  launcher. Treat a cloned repository's settings as code you are about to run.
+- Subagents need the `Agent` tool, which is not in the default list.
 - The compact-policy deny rules discourage reading and editing that file; they do not make
   it immutable.
 

@@ -39,11 +39,25 @@ elif [ -f "$config_home/settings.json" ]; then
   settings="$config_home/settings.json"
   settings_source=user
 fi
-tools="${CLAUDE_KISS_TOOLS:-Bash,Glob,Grep,Read,Edit,Write}"
-tools_source=managed
-if [ "${CLAUDE_KISS_TOOLS+x}" = x ]; then
-  tools_source=environment
-fi
+setting_sources=user,project,local
+
+# The core coding set is fixed. Four capabilities can be added; nothing else can.
+# For Claude Code's full product surface, use the `claude` command.
+core_tools=Bash,Glob,Grep,Read,Edit,Write
+web_enabled=0
+skills_enabled=0
+delegation_enabled=0
+mcp_enabled=0
+[ "${CLAUDE_KISS_WEB:-0}" != "1" ] || web_enabled=1
+[ "${CLAUDE_KISS_SKILLS:-0}" != "1" ] || skills_enabled=1
+[ "${CLAUDE_KISS_DELEGATION:-0}" != "1" ] || delegation_enabled=1
+[ "${CLAUDE_KISS_MCP:-0}" != "1" ] || mcp_enabled=1
+
+tools=$core_tools
+[ "$web_enabled" -eq 0 ] || tools="$tools,WebFetch,WebSearch"
+[ "$skills_enabled" -eq 0 ] || tools="$tools,Skill"
+[ "$delegation_enabled" -eq 0 ] || tools="$tools,Agent"
+[ "$mcp_enabled" -eq 0 ] || tools="$tools,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers"
 compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
 compact_memory_source=managed
 if [ "${CLAUDE_KISS_COMPACT_MEMORY+x}" = x ]; then
@@ -72,15 +86,12 @@ init_user_config() {
   printf 'created: %s\n' "$target_file"
 }
 
-tool_state() {
-  if [ "$tools" = default ]; then
-    printf 'available\n'
-    return
+capability_state() {
+  if [ "$1" -eq 1 ]; then
+    printf 'enabled\n'
+  else
+    printf 'disabled\n'
   fi
-  case ",$tools," in
-    *",$1,"*) printf 'available\n' ;;
-    *) printf 'unavailable\n' ;;
-  esac
 }
 
 print_help() {
@@ -95,16 +106,19 @@ Usage:
   claude-kiss --help               Show this help
   claude-kiss --version            Show wrapper and Claude versions
 
+Capabilities (off unless enabled; these four are the only ones):
+  CLAUDE_KISS_WEB=1                WebFetch and WebSearch
+  CLAUDE_KISS_SKILLS=1             Skill, so Claude can load your skills when relevant
+  CLAUDE_KISS_DELEGATION=1         Agent, so Claude can run subagents
+  CLAUDE_KISS_MCP=1                MCP server discovery and MCP resource tools
+
 Useful overrides:
   CLAUDE_BIN=path                  Claude executable (default: claude)
   CLAUDE_KISS_HOME=path            Installation/data directory
   CLAUDE_KISS_PROMPT=path          Replacement system-prompt file
   CLAUDE_KISS_SETTINGS=path        Replacement settings file
   CLAUDE_KISS_CONFIG_HOME=path     User-owned configuration directory
-  CLAUDE_KISS_TOOLS=list           Built-in tool list, or 'default'
-  CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
-  CLAUDE_KISS_MCP=1                Allow normal MCP discovery
-  CLAUDE_KISS_CHROME=1             Allow the Claude in Chrome integration
+  CLAUDE_KISS_DISABLE_COMMANDS=1   Also stop you typing /skill-name yourself
   CLAUDE_KISS_CLAUDE_MD=0          Do not load CLAUDE.md memory files
   CLAUDE_KISS_COMPACT_MEMORY=path  Directory containing CLAUDE.md compact policy, or 0
   CLAUDE_KISS_ISOLATED=1           Use a separate Claude config directory
@@ -112,10 +126,12 @@ Useful overrides:
 
 Unless overridden, the wrapper replaces the vendor system prompt, uses the six core
 coding tools, removes bundled skills/workflows, disables MCP discovery and the Claude
-in Chrome integration, loads user settings so /model works, prompts for tool
+in Chrome integration, loads user, project, and local settings, prompts for tool
 permissions instead of silently denying them, opts out of nonessential traffic, and
-leaves the normal `claude` command untouched. Any direct Claude argument, such as
---permission-mode, --setting-sources, or --tools, replaces the matching KISS default.
+leaves the normal `claude` command untouched. Web, skills, delegation, and MCP are
+the only capabilities you can add; for Claude Code's full product surface, use the
+`claude` command. Any direct Claude argument, such as --permission-mode or
+--setting-sources, replaces the matching KISS default.
 Compaction keeps Claude's own timing and adds a concise editable compact-instructions
 memory. Change it with Claude's native --autocompact, DISABLE_AUTO_COMPACT, and
 DISABLE_COMPACT.
@@ -191,22 +207,18 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'prompt source: %s\n' "$prompt_source"
   printf 'settings: %s\n' "$settings"
   printf 'settings source: %s\n' "$settings_source"
-  # --setting-sources user keeps your own settings live, including any hooks in them.
+  # Settings files stay live, including any hooks in them. Claude Code gates a
+  # first-time directory behind its own trust prompt.
+  printf 'setting sources: %s\n' "$setting_sources"
   printf 'user settings: %s/settings.json\n' "$claude_config_dir"
   printf 'tools: %s\n' "$tools"
-  printf 'tools source: %s\n' "$tools_source"
-  printf 'subagents: %s\n' "$(tool_state Agent)"
-  printf 'web search: %s\n' "$(tool_state WebSearch)"
-  printf 'web fetch: %s\n' "$(tool_state WebFetch)"
-  mcp_state='strict (no discovery)'
-  [ "${CLAUDE_KISS_MCP:-0}" != "1" ] || mcp_state='normal discovery'
-  chrome_state=disabled
-  [ "${CLAUDE_KISS_CHROME:-0}" != "1" ] || chrome_state=enabled
+  printf 'web: %s\n' "$(capability_state "$web_enabled")"
+  printf 'skills: %s\n' "$(capability_state "$skills_enabled")"
+  printf 'delegation: %s\n' "$(capability_state "$delegation_enabled")"
+  printf 'mcp: %s\n' "$(capability_state "$mcp_enabled")"
   commands_state=enabled
   [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" != "1" ] || commands_state=disabled
-  printf 'mcp: %s\n' "$mcp_state"
-  printf 'chrome: %s\n' "$chrome_state"
-  printf 'skills and slash commands: %s\n' "$commands_state"
+  printf 'slash commands: %s\n' "$commands_state"
   printf 'permission mode: default\n'
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
@@ -230,7 +242,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
 
   capability_failed=0
   check_claude_capability '--system-prompt-file' --system-prompt-file "$prompt"
-  check_claude_capability '--setting-sources' --setting-sources user
+  check_claude_capability '--setting-sources' --setting-sources "$setting_sources"
   check_claude_capability '--settings' --settings "$settings"
   check_claude_capability '--tools' --tools "$tools"
   check_claude_capability '--permission-mode' --permission-mode default
@@ -252,27 +264,40 @@ if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
   mkdir -p "$CLAUDE_CONFIG_DIR"
 fi
 
+reject_capability_argument() {
+  cat >&2 <<EOF
+claude-kiss: $1 is not accepted, because the capability surface is the point.
+
+Add a capability for this session instead:
+  CLAUDE_KISS_WEB=1          WebFetch and WebSearch
+  CLAUDE_KISS_SKILLS=1       Skill
+  CLAUDE_KISS_DELEGATION=1   Agent
+  CLAUDE_KISS_MCP=1          MCP discovery and resource tools
+
+For Claude Code's full product surface, use the claude command.
+EOF
+  exit 2
+}
+
 user_setting_sources=0
 user_settings=0
 user_system_prompt=0
-user_tools=0
 user_permission_mode=0
-user_chrome=0
 has_mcp_config=0
 for argument in "$@"; do
   case "$argument" in
     --setting-sources|--setting-sources=*) user_setting_sources=1 ;;
     --settings|--settings=*) user_settings=1 ;;
     --system-prompt|--system-prompt=*|--system-prompt-file|--system-prompt-file=*) user_system_prompt=1 ;;
-    --tools|--tools=*) user_tools=1 ;;
+    --tools|--tools=*) reject_capability_argument --tools ;;
+    --chrome) reject_capability_argument --chrome ;;
     --permission-mode|--permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
-    --chrome|--no-chrome) user_chrome=1 ;;
     --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
   esac
 done
 
 if [ "$user_setting_sources" -eq 0 ]; then
-  set -- --setting-sources user "$@"
+  set -- --setting-sources "$setting_sources" "$@"
 fi
 if [ "$user_settings" -eq 0 ]; then
   set -- --settings "$settings" "$@"
@@ -280,9 +305,7 @@ fi
 if [ "$user_system_prompt" -eq 0 ]; then
   set -- --system-prompt-file "$prompt" "$@"
 fi
-if [ "$user_tools" -eq 0 ]; then
-  set -- --tools "$tools" "$@"
-fi
+set -- --tools "$tools" "$@"
 if [ "$user_permission_mode" -eq 0 ]; then
   set -- --permission-mode default "$@"
 fi
@@ -297,16 +320,14 @@ if [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" = "1" ]; then
   set -- --disable-slash-commands "$@"
 fi
 
-if [ "${CLAUDE_KISS_MCP:-0}" != "1" ]; then
+if [ "$mcp_enabled" -eq 0 ]; then
   set -- --strict-mcp-config "$@"
   if [ "$has_mcp_config" -eq 0 ]; then
     set -- --mcp-config '{"mcpServers":{}}' "$@"
   fi
 fi
 
-if [ "${CLAUDE_KISS_CHROME:-0}" != "1" ] && [ "$user_chrome" -eq 0 ]; then
-  set -- --no-chrome "$@"
-fi
+set -- --no-chrome "$@"
 
 if [ "${CLAUDE_KISS_DRY_RUN:-0}" = "1" ]; then
   printf 'command:'

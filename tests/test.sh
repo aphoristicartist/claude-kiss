@@ -218,22 +218,22 @@ grep -q '^prompt source: user$' "$temporary/user-doctor.txt"
 grep -q '^settings source: user$' "$temporary/user-doctor.txt"
 grep -q '^user settings: .*/settings\.json$' "$temporary/user-doctor.txt"
 grep -q '^compact memory source: user$' "$temporary/user-doctor.txt"
-grep -q '^subagents: unavailable$' "$temporary/user-doctor.txt"
-grep -q '^web search: unavailable$' "$temporary/user-doctor.txt"
-grep -q '^web fetch: unavailable$' "$temporary/user-doctor.txt"
-grep -q '^mcp: strict (no discovery)$' "$temporary/user-doctor.txt"
-grep -q '^chrome: disabled$' "$temporary/user-doctor.txt"
-grep -q '^skills and slash commands: enabled$' "$temporary/user-doctor.txt"
+grep -q '^tools: Bash,Glob,Grep,Read,Edit,Write$' "$temporary/user-doctor.txt"
+grep -q '^web: disabled$' "$temporary/user-doctor.txt"
+grep -q '^skills: disabled$' "$temporary/user-doctor.txt"
+grep -q '^delegation: disabled$' "$temporary/user-doctor.txt"
+grep -q '^mcp: disabled$' "$temporary/user-doctor.txt"
+grep -q '^slash commands: enabled$' "$temporary/user-doctor.txt"
 
-CLAUDE_KISS_TOOLS=default CLAUDE_KISS_MCP=1 CLAUDE_KISS_CHROME=1 \
+CLAUDE_KISS_WEB=1 CLAUDE_KISS_SKILLS=1 CLAUDE_KISS_DELEGATION=1 CLAUDE_KISS_MCP=1 \
   CLAUDE_KISS_DISABLE_COMMANDS=1 CLAUDE_KISS_CONFIG_HOME="$user_config" \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" doctor \
   >"$temporary/opt-in-doctor.txt"
-grep -q '^subagents: available$' "$temporary/opt-in-doctor.txt"
-grep -q '^web search: available$' "$temporary/opt-in-doctor.txt"
-grep -q '^mcp: normal discovery$' "$temporary/opt-in-doctor.txt"
-grep -q '^chrome: enabled$' "$temporary/opt-in-doctor.txt"
-grep -q '^skills and slash commands: disabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^web: enabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^skills: enabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^delegation: enabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^mcp: enabled$' "$temporary/opt-in-doctor.txt"
+grep -q '^slash commands: disabled$' "$temporary/opt-in-doctor.txt"
 
 environment_prompt="$temporary/environment-prompt.md"
 cp "$user_config/prompt.md" "$environment_prompt"
@@ -270,7 +270,7 @@ CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" hello >"$temporary/dry-run.txt"
-grep -q '\[--setting-sources\] \[user\]' "$temporary/dry-run.txt"
+grep -q '\[--setting-sources\] \[user,project,local\]' "$temporary/dry-run.txt"
 grep -q '\[--permission-mode\] \[default\]' "$temporary/dry-run.txt"
 grep -q -- '--strict-mcp-config' "$temporary/dry-run.txt"
 grep -q -- '--no-chrome' "$temporary/dry-run.txt"
@@ -294,31 +294,48 @@ refute "$temporary/mode-dry-run.txt" '\[default\]' \
 refute "$temporary/dry-run.txt" '--disable-slash-commands' \
   'slash commands must remain enabled by default for /model'
 
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CHROME=1 CLAUDE_KISS_HOME="$repo_dir" \
-  "$repo_dir/bin/claude-kiss" >"$temporary/chrome-enabled.txt"
-refute "$temporary/chrome-enabled.txt" '--no-chrome' \
-  'CLAUDE_KISS_CHROME=1 must not disable the Chrome integration'
-
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
-  "$repo_dir/bin/claude-kiss" --chrome >"$temporary/chrome-direct.txt"
-refute "$temporary/chrome-direct.txt" '--no-chrome' \
-  'a direct --chrome argument must win over the KISS default'
-
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_DISABLE_COMMANDS=1 \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
   >"$temporary/commands-disabled.txt"
 grep -q -- '--disable-slash-commands' "$temporary/commands-disabled.txt"
 
-explicit_tools='Bash,Glob,Grep,Read,Edit,Write,LSP,Agent,TaskStop,WebFetch,WebSearch,ToolSearch'
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
-  CLAUDE_KISS_TOOLS="$explicit_tools" "$repo_dir/bin/claude-kiss" \
-  >"$temporary/explicit-tools.txt"
-grep -q "\[--tools\] \[$explicit_tools\]" "$temporary/explicit-tools.txt"
+# The capability surface is the product. Each switch adds exactly its own tools.
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_WEB=1 \
+  "$repo_dir/bin/claude-kiss" >"$temporary/web.txt"
+grep -q '\[--tools\] \[Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch\]' "$temporary/web.txt"
 
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
-  CLAUDE_KISS_TOOLS=default "$repo_dir/bin/claude-kiss" \
-  >"$temporary/default-tools.txt"
-grep -q '\[--tools\] \[default\]' "$temporary/default-tools.txt"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_DELEGATION=1 \
+  "$repo_dir/bin/claude-kiss" >"$temporary/delegation.txt"
+grep -q '\[--tools\] \[Bash,Glob,Grep,Read,Edit,Write,Agent\]' "$temporary/delegation.txt"
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_SKILLS=1 \
+  "$repo_dir/bin/claude-kiss" >"$temporary/skills.txt"
+grep -q '\[--tools\] \[Bash,Glob,Grep,Read,Edit,Write,Skill\]' "$temporary/skills.txt"
+
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_MCP=1 \
+  "$repo_dir/bin/claude-kiss" >"$temporary/mcp-tools.txt"
+grep -q 'ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers\]' "$temporary/mcp-tools.txt"
+
+# Chrome is not one of the four, so it stays off no matter what.
+grep -q -- '--no-chrome' "$temporary/web.txt"
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CHROME=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/chrome-attempt.txt"
+grep -q -- '--no-chrome' "$temporary/chrome-attempt.txt"
+
+# There must be no way to widen the surface past the four capabilities.
+for rejected in --tools --chrome; do
+  if CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+    "$repo_dir/bin/claude-kiss" "$rejected" default >"$temporary/rejected.txt" 2>&1; then
+    printf 'FAIL: %s must be rejected, not honoured\n' "$rejected" >&2
+    exit 1
+  fi
+  grep -q 'is not accepted' "$temporary/rejected.txt"
+done
+
+# Anthropic's own skills and workflows stay off even with skills enabled.
+grep -q '"disableBundledSkills": true' "$repo_dir/config/settings.json"
+grep -q '"disableWorkflows": true' "$repo_dir/config/settings.json"
+grep -q '"syncClaudeAiSkills": false' "$repo_dir/config/settings.json"
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT_MEMORY=0 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" >"$temporary/no-compact-memory.txt"
@@ -338,13 +355,13 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" --autocompact 400k >"$temporary/autocompact.txt"
 grep -q '\[--autocompact\] \[400k\]' "$temporary/autocompact.txt"
 
-# A direct Claude argument must suppress the matching KISS default.
+# A direct Claude argument must suppress the matching KISS default, except for the
+# capability arguments, which are rejected rather than honoured.
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
-  "$repo_dir/bin/claude-kiss" --tools Read >"$temporary/direct-tools.txt"
-argv_of "$temporary/direct-tools.txt" >"$temporary/direct-tools.cmd"
-grep -q '\[--tools\] \[Read\]' "$temporary/direct-tools.cmd"
-refute "$temporary/direct-tools.cmd" 'Bash,Glob,Grep,Read,Edit,Write' \
-  'a direct --tools argument must not be paired with the KISS default list'
+  "$repo_dir/bin/claude-kiss" --settings "$repo_dir/config/settings.json" \
+  >"$temporary/direct-settings.txt"
+argv_of "$temporary/direct-settings.txt" >"$temporary/direct-settings.cmd"
+[ "$(grep -c -- '\[--settings\]' "$temporary/direct-settings.cmd")" -eq 1 ]
 
 direct_prompt="$temporary/direct-prompt.md"
 printf 'direct prompt\n' >"$direct_prompt"
@@ -381,7 +398,7 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" --setting-sources user,project \
   >"$temporary/setting-sources.txt"
 grep -q '\[--setting-sources\] \[user,project\]' "$temporary/setting-sources.txt"
-refute "$temporary/setting-sources.txt" '\[--setting-sources\] \[user\]' \
+refute "$temporary/setting-sources.txt" '\[--setting-sources\] \[user,project,local\]' \
   'a direct --setting-sources argument must not be paired with the KISS default'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CLAUDE_MD=0 CLAUDE_KISS_HOME="$repo_dir" \
@@ -395,9 +412,10 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_ISOLATED=1 CLAUDE_CONFIG_DIR="$isolated_config
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" >/dev/null
 [ -d "$isolated_config" ]
 
-# doctor must name the user-scope settings file that --setting-sources user still loads.
+# doctor must report the effective setting sources and name the user-scope settings file.
 CLAUDE_CONFIG_DIR="$isolated_config" CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" doctor >"$temporary/config-dir-doctor.txt"
+grep -q '^setting sources: user,project,local$' "$temporary/config-dir-doctor.txt"
 grep -q "^user settings: $isolated_config/settings.json\$" \
   "$temporary/config-dir-doctor.txt"
 

@@ -166,26 +166,45 @@ Sessions start with `Bash`, `Glob`, `Grep`, `Read`, `Edit`, `Write`. The `Agent`
 in that list, so eager delegation is unavailable by default rather than merely discouraged —
 a stronger version of the deterministic caps the Opus 5 guide recommends.
 
-Anything else is one argument away, per task:
+Four capabilities can be added for a task, and only four:
 
 ```sh
-CLAUDE_KISS_TOOLS=Bash,Glob,Grep,Read,Edit,Write,WebFetch,WebSearch claude-kiss
+CLAUDE_KISS_WEB=1 claude-kiss          # WebFetch, WebSearch
+CLAUDE_KISS_SKILLS=1 claude-kiss       # Skill
+CLAUDE_KISS_DELEGATION=1 claude-kiss   # Agent
+CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery and resource tools
 ```
 
 This is [MANIFESTO.md](MANIFESTO.md) §4: the right capability set is task-relative, so it
 belongs on the command line rather than in permanent configuration.
 
+There is deliberately no switch that turns everything on, and `--tools` is refused rather
+than passed through. A launcher whose entire purpose is a defensible default surface should
+not ship a one-word bypass of it. If you want the full product, the full product still
+exists and is called `claude`.
+
 ### 3. Leave ambient surface off
 
 Bundled skills and workflows, agent view, artifacts, connectors, remote control, Claude in
-Chrome, auto memory, git instructions in the prompt, telemetry, surveys, error reporting,
-and auto-update all start disabled. MCP is strict — no discovery unless you enable it.
-Project and local settings are skipped; your own user settings still load, so `/model` and
-your account defaults keep working.
+Chrome, plugin marketplace autoinstall, claude.ai skill sync, auto memory, git instructions
+in the prompt, telemetry, surveys, error reporting, and auto-update all start disabled. MCP
+is strict — no discovery unless you enable it.
+
+Anthropic's own skills and workflows stay off even when you enable the skills capability.
+`CLAUDE_KISS_SKILLS=1` lets Claude reach *your* skills when they are relevant; it does not
+bring back `/code-review` and the rest. That is the distinction [MANIFESTO.md](MANIFESTO.md)
+§7 draws: a skill should add knowledge you chose, not occupy every session because it
+shipped in the box.
 
 This is the same advice as "disable any you're not actively using," applied as a default
-rather than as cleanup you remember to do. None of it is a judgement that those features are
-bad — it is a judgement about defaults.
+rather than as cleanup you remember to do.
+
+Settings are the deliberate exception. User, project, and local settings all load, so
+`/model`, your account defaults, and a repository's own configuration keep working. Claude
+Code already gates a first-time codebase behind [trust verification][security], so skipping
+project settings would duplicate a native guard rather than add one — and [MANIFESTO.md](MANIFESTO.md)
+§10 says to prefer the native mechanism. The full tool list, enabled and disabled, is in
+[README.md](README.md#default-tools).
 
 ### 4. Give compaction a job
 
@@ -236,6 +255,8 @@ this project exists to remove; it would be a poor result to add some.
 - [Manage costs effectively][costs] — Claude Code documentation. MCP tool-definition
   deferral, CLI versus MCP context cost, `CLAUDE.md` load behaviour, agent team token
   multiples, auto-compaction, and why usage climbs in long sessions.
+- [Security][security] — Claude Code documentation. Trust verification for first-time
+  codebases, which is what gates project settings from an unfamiliar repository.
 - [Claude Code issue #83510][issue83510] — community-run verbosity measurements across model
   generations. User-reported, not a vendor benchmark.
 - [Concise output style write-up][bandaid] — secondary source for the "quick band aid"
@@ -246,6 +267,7 @@ this project exists to remove; it would be a poor result to add some.
 Documentation moves. If a quotation here no longer matches the linked page, trust the page.
 
 [opus5]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5
+[security]: https://code.claude.com/docs/en/security
 [styles]: https://code.claude.com/docs/en/output-styles
 [costs]: https://code.claude.com/docs/en/costs
 [issue83510]: https://github.com/anthropics/claude-code/issues/83510
