@@ -8,7 +8,6 @@
   "disableWorkflows": true,
   "includeGitInstructions": false,
   "autoMemoryEnabled": false,
-  "autoCompactEnabled": true,
   "spinnerTipsEnabled": false,
   "attribution": {
     "commit": "",

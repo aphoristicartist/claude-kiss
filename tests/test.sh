@@ -61,7 +61,8 @@ assert settings["env"]["CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL"] =
 assert settings["env"]["CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT"] == "1"
 assert "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC" not in settings["env"]
 assert settings["autoMemoryEnabled"] is False
-assert settings["autoCompactEnabled"] is True
+# Compaction timing stays the user's choice: no managed override of the vendor default.
+assert "autoCompactEnabled" not in settings
 assert settings["includeGitInstructions"] is False
 # Prompt and compact-memory behavior is protected by evals/run_evals.py.
 # Asserting exact sentences here would freeze wording instead of outcomes.
@@ -215,6 +216,7 @@ CLAUDE_KISS_CONFIG_HOME="$user_config" CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" doctor >"$temporary/user-doctor.txt"
 grep -q '^prompt source: user$' "$temporary/user-doctor.txt"
 grep -q '^settings source: user$' "$temporary/user-doctor.txt"
+grep -q '^user settings: .*/settings\.json$' "$temporary/user-doctor.txt"
 grep -q '^compact memory source: user$' "$temporary/user-doctor.txt"
 grep -q '^subagents: unavailable$' "$temporary/user-doctor.txt"
 grep -q '^web search: unavailable$' "$temporary/user-doctor.txt"
@@ -275,9 +277,8 @@ grep -q -- '--no-chrome' "$temporary/dry-run.txt"
 grep -q 'Bash,Glob,Grep,Read,Edit,Write' "$temporary/dry-run.txt"
 grep -q -- '--add-dir' "$temporary/dry-run.txt"
 grep -q -- '--disallowedTools' "$temporary/dry-run.txt"
-grep -q '^compaction: kiss$' "$temporary/dry-run.txt"
-grep -q '^DISABLE_AUTO_COMPACT=0$' "$temporary/dry-run.txt"
-grep -q '^DISABLE_COMPACT=0$' "$temporary/dry-run.txt"
+refute "$temporary/dry-run.txt" '--autocompact' \
+  'compaction timing must stay with Claude unless the user passes --autocompact'
 
 CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --dangerously-skip-permissions \
   >"$temporary/bypass-dry-run.txt"
@@ -308,44 +309,34 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_DISABLE_COMMANDS=1 \
   >"$temporary/commands-disabled.txt"
 grep -q -- '--disable-slash-commands' "$temporary/commands-disabled.txt"
 
-direct_tools='Bash,Glob,Grep,Read,Edit,Write,LSP,Agent,TaskStop,WebFetch,WebSearch,ToolSearch'
+explicit_tools='Bash,Glob,Grep,Read,Edit,Write,LSP,Agent,TaskStop,WebFetch,WebSearch,ToolSearch'
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
-  CLAUDE_KISS_TOOLS="$direct_tools" "$repo_dir/bin/claude-kiss" \
-  >"$temporary/direct-tools.txt"
-grep -q "\[--tools\] \[$direct_tools\]" "$temporary/direct-tools.txt"
+  CLAUDE_KISS_TOOLS="$explicit_tools" "$repo_dir/bin/claude-kiss" \
+  >"$temporary/explicit-tools.txt"
+grep -q "\[--tools\] \[$explicit_tools\]" "$temporary/explicit-tools.txt"
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   CLAUDE_KISS_TOOLS=default "$repo_dir/bin/claude-kiss" \
   >"$temporary/default-tools.txt"
 grep -q '\[--tools\] \[default\]' "$temporary/default-tools.txt"
 
-for profile in plain early manual off; do
-  CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT="$profile" \
-    CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
-    >"$temporary/$profile.txt"
-done
-refute "$temporary/plain.txt" '--add-dir' \
-  'plain compaction must not load KISS compact memory'
-refute "$temporary/plain.txt" '--autocompact' \
-  'plain compaction must use the model default window'
-grep -q '^DISABLE_AUTO_COMPACT=1$' "$temporary/manual.txt"
-grep -q '^DISABLE_COMPACT=0$' "$temporary/manual.txt"
-grep -q -- '--add-dir' "$temporary/manual.txt"
-grep -q '^DISABLE_AUTO_COMPACT=1$' "$temporary/off.txt"
-grep -q '^DISABLE_COMPACT=1$' "$temporary/off.txt"
-refute "$temporary/off.txt" '--add-dir' \
-  'disabled compaction must not load compact memory'
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT_MEMORY=0 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" >"$temporary/no-compact-memory.txt"
+grep -q '^compact memory: disabled$' "$temporary/no-compact-memory.txt"
+refute "$temporary/no-compact-memory.txt" '--add-dir' \
+  'CLAUDE_KISS_COMPACT_MEMORY=0 must not load compact memory'
 
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT=early CLAUDE_KISS_AUTOCOMPACT=400k \
+# Compaction stays native: the launcher reports the environment instead of overwriting it.
+DISABLE_AUTO_COMPACT=1 DISABLE_COMPACT=1 CLAUDE_KISS_DRY_RUN=1 \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
-  >"$temporary/early.txt"
-grep -q '\[--autocompact\] \[400k\]' "$temporary/early.txt"
+  >"$temporary/native-compaction.txt"
+grep -q '^DISABLE_AUTO_COMPACT=1$' "$temporary/native-compaction.txt"
+grep -q '^DISABLE_COMPACT=1$' "$temporary/native-compaction.txt"
+grep -q -- '--add-dir' "$temporary/native-compaction.txt"
 
-if CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_COMPACT=wrong CLAUDE_KISS_HOME="$repo_dir" \
-  "$repo_dir/bin/claude-kiss" >/dev/null 2>&1; then
-  printf 'error: invalid compaction profile must fail\n' >&2
-  exit 1
-fi
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --autocompact 400k >"$temporary/autocompact.txt"
+grep -q '\[--autocompact\] \[400k\]' "$temporary/autocompact.txt"
 
 # A direct Claude argument must suppress the matching KISS default.
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
@@ -386,10 +377,12 @@ CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_MCP=1 CLAUDE_KISS_HOME="$repo_dir" \
 refute "$temporary/mcp-enabled.txt" 'strict-mcp-config' \
   'CLAUDE_KISS_MCP=1 must restore normal MCP discovery'
 
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_SETTING_SOURCES=user,project \
-  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" \
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" --setting-sources user,project \
   >"$temporary/setting-sources.txt"
 grep -q '\[--setting-sources\] \[user,project\]' "$temporary/setting-sources.txt"
+refute "$temporary/setting-sources.txt" '\[--setting-sources\] \[user\]' \
+  'a direct --setting-sources argument must not be paired with the KISS default'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_CLAUDE_MD=0 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" >"$temporary/no-claude-md.txt"
@@ -398,9 +391,15 @@ refute "$temporary/no-claude-md.txt" '--add-dir' \
   'CLAUDE_KISS_CLAUDE_MD=0 must not load compact memory'
 
 isolated_config="$temporary/isolated-config"
-CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_ISOLATED=1 CLAUDE_KISS_CONFIG_DIR="$isolated_config" \
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_ISOLATED=1 CLAUDE_CONFIG_DIR="$isolated_config" \
   CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" >/dev/null
 [ -d "$isolated_config" ]
+
+# doctor must name the user-scope settings file that --setting-sources user still loads.
+CLAUDE_CONFIG_DIR="$isolated_config" CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" doctor >"$temporary/config-dir-doctor.txt"
+grep -q "^user settings: $isolated_config/settings.json\$" \
+  "$temporary/config-dir-doctor.txt"
 
 "$repo_dir/bin/claude-kiss" --version >"$temporary/version.txt"
 grep -q "^claude-kiss $version\$" "$temporary/version.txt"

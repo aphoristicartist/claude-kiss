@@ -77,8 +77,8 @@ claude-kiss --permission-mode acceptEdits    # auto-approve file edits only
 ## What, why, and how
 
 **What:** Claude KISS is a transparent second launcher. It keeps Claude Code, but supplies
-a builder-first prompt, a smaller default tool surface, strict MCP behavior, explicit
-compaction control, and editable files you own. The design rules behind those choices are
+a builder-first prompt, a smaller default tool surface, strict MCP behavior, an editable
+compact-handoff policy, and files you own. The design rules behind those choices are
 written down in [MANIFESTO.md](MANIFESTO.md).
 
 **Why:** recent Claude Code and Opus 5 discussions repeatedly describe a capable coding
@@ -133,7 +133,7 @@ It gives Claude Code:
 - no attribution inserted into commits or PRs;
 - supported opt-outs for telemetry, error reporting, feedback, auto-update, and related
   nonessential traffic;
-- explicit long-session compaction control;
+- an editable long-session compact-handoff policy;
 - user-owned files that installer updates never overwrite.
 
 The important distinction is what “concise” means here:
@@ -170,8 +170,8 @@ and stays inside the requested scope.
 CLAUDE_KISS_DRY_RUN=1 claude-kiss
 ```
 
-The wrapper prints the native Claude Code command, selected prompt, settings, compaction
-mode, and memory path. There is no hidden runtime and no second vendor to trust.
+The wrapper prints the native Claude Code command, selected prompt, settings, and memory
+path. There is no hidden runtime and no second vendor to trust.
 
 ### 3. Own the configuration
 
@@ -224,7 +224,7 @@ It also verifies that the installed Claude Code supports every native flag KISS 
 | Auto memory | Vendor default | Disabled |
 | Attribution | Claude attribution | Removed |
 | Auto-update, telemetry, surveys, error reporting | Vendor defaults | Supported opt-outs enabled |
-| Compaction | Normal behavior | Selectable profiles plus KISS handoff policy |
+| Compaction | Normal behavior | Normal timing plus KISS handoff policy |
 | Existing installation | — | Untouched |
 
 Optional capability remains one argument or environment variable away.
@@ -281,28 +281,24 @@ Installer updates do not merge, migrate, overwrite, or “improve” these files
 ## Context compaction
 
 Long sessions fail when the model remembers activity but loses the objective. Claude KISS
-ships an editable compact-handoff policy and five timing modes.
-
-| Profile | Auto-compact | Compact command | KISS compact memory |
-|---|---:|---:|---:|
-| `kiss` | enabled | enabled | yes |
-| `plain` | enabled | enabled | no |
-| `early` | enabled | enabled | yes |
-| `manual` | disabled | enabled | yes |
-| `off` | disabled | disabled | no |
+adds one thing here: an editable compact-handoff policy. Timing stays with Claude Code, so
+there is no KISS profile layer to learn.
 
 ```sh
-# Default tuned profile
+# Handoff policy plus Claude's own compaction timing
 claude-kiss
 
 # Compact earlier
-CLAUDE_KISS_COMPACT=early CLAUDE_KISS_AUTOCOMPACT=400k claude-kiss
+claude-kiss --autocompact 400k
 
 # Keep context until you explicitly compact
-CLAUDE_KISS_COMPACT=manual claude-kiss
+DISABLE_AUTO_COMPACT=1 claude-kiss
 
 # Disable compaction completely
-CLAUDE_KISS_COMPACT=off claude-kiss
+DISABLE_AUTO_COMPACT=1 DISABLE_COMPACT=1 claude-kiss
+
+# Skip the KISS handoff policy
+CLAUDE_KISS_COMPACT_MEMORY=0 claude-kiss
 ```
 
 ## Trust boundary
@@ -314,6 +310,9 @@ Be explicit about what that means:
 - `Bash` remains available and is powerful.
 - Tool restrictions are an attention and behavior surface, not filesystem isolation.
 - MCP is hidden unless explicitly enabled; it is not made safe by hiding it.
+- Your own user settings are loaded, so hooks configured in `~/.claude/settings.json` still
+  run and your own skills stay available. Subagents need the `Agent` tool, which is not in
+  the default tool list.
 - Review MCP configs, repository instructions, aliases, and Claude permissions as you
   normally would.
 - The compact-memory deny rules discourage normal `Read`/`Edit` access; they do not make
@@ -442,7 +441,7 @@ python3 -m json.tool config/settings.json
 
 The tests cover launcher argument precedence, user-owned configuration, failure paths,
 `exec` and `auth` passthrough, installer guardrails and update/uninstall behavior, release
-packaging and metadata, settings invariants, compaction modes, and evaluator checks.
+packaging and metadata, settings invariants, compaction behavior, and evaluator checks.
 
 Linting is the same pair CI runs, and both tools are optional locally:
 

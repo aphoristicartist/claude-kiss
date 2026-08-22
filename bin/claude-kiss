@@ -18,6 +18,11 @@ fi
 
 home=$(CDPATH='' cd -- "$home" && pwd -P)
 config_home="${CLAUDE_KISS_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/claude-kiss}"
+if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
+  claude_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.local/state/claude-kiss/config}"
+else
+  claude_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+fi
 prompt="${CLAUDE_KISS_PROMPT:-$home/prompt/claude-kiss.md}"
 prompt_source=managed
 if [ "${CLAUDE_KISS_PROMPT+x}" = x ]; then
@@ -39,7 +44,6 @@ tools_source=managed
 if [ "${CLAUDE_KISS_TOOLS+x}" = x ]; then
   tools_source=environment
 fi
-compact_profile="${CLAUDE_KISS_COMPACT:-kiss}"
 compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
 compact_memory_source=managed
 if [ "${CLAUDE_KISS_COMPACT_MEMORY+x}" = x ]; then
@@ -98,14 +102,11 @@ Useful overrides:
   CLAUDE_KISS_SETTINGS=path        Replacement settings file
   CLAUDE_KISS_CONFIG_HOME=path     User-owned configuration directory
   CLAUDE_KISS_TOOLS=list           Built-in tool list, or 'default'
-  CLAUDE_KISS_SETTING_SOURCES=list Settings scopes (default: user)
   CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
   CLAUDE_KISS_MCP=1                Allow normal MCP discovery
   CLAUDE_KISS_CHROME=1             Allow the Claude in Chrome integration
   CLAUDE_KISS_CLAUDE_MD=0          Do not load CLAUDE.md memory files
-  CLAUDE_KISS_COMPACT=PROFILE      kiss, plain, early, manual, or off
-  CLAUDE_KISS_AUTOCOMPACT=SIZE     Custom window for early mode (default: 500k)
-  CLAUDE_KISS_COMPACT_MEMORY=path  Directory containing CLAUDE.md compact policy
+  CLAUDE_KISS_COMPACT_MEMORY=path  Directory containing CLAUDE.md compact policy, or 0
   CLAUDE_KISS_ISOLATED=1           Use a separate Claude config directory
   CLAUDE_KISS_DRY_RUN=1            Print the command instead of launching Claude
 
@@ -113,10 +114,11 @@ Unless overridden, the wrapper replaces the vendor system prompt, uses the six c
 coding tools, removes bundled skills/workflows, disables MCP discovery and the Claude
 in Chrome integration, loads user settings so /model works, prompts for tool
 permissions instead of silently denying them, opts out of nonessential traffic, and
-leaves the normal `claude` command untouched. Pass --dangerously-skip-permissions or
---permission-mode to override.
-The default `kiss` compaction profile uses Claude's tuned automatic timing plus a
-concise editable compact-instructions memory.
+leaves the normal `claude` command untouched. Any direct Claude argument, such as
+--permission-mode, --setting-sources, or --tools, replaces the matching KISS default.
+Compaction keeps Claude's own timing and adds a concise editable compact-instructions
+memory. Change it with Claude's native --autocompact, DISABLE_AUTO_COMPACT, and
+DISABLE_COMPACT.
 EOF
 }
 
@@ -169,19 +171,7 @@ if [ ! -f "$settings" ]; then
   exit 1
 fi
 
-case "$compact_profile" in
-  kiss|plain|early|manual|off) ;;
-  *)
-    printf 'claude-kiss: invalid CLAUDE_KISS_COMPACT profile: %s\n' "$compact_profile" >&2
-    printf 'Expected kiss, plain, early, manual, or off.\n' >&2
-    exit 2
-    ;;
-esac
-
-load_compact_memory=0
-case "$compact_profile" in
-  kiss|early|manual) load_compact_memory=1 ;;
-esac
+load_compact_memory=1
 if [ "${CLAUDE_KISS_CLAUDE_MD:-1}" = "0" ] || [ "$compact_memory" = "0" ]; then
   load_compact_memory=0
 fi
@@ -201,6 +191,8 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'prompt source: %s\n' "$prompt_source"
   printf 'settings: %s\n' "$settings"
   printf 'settings source: %s\n' "$settings_source"
+  # --setting-sources user keeps your own settings live, including any hooks in them.
+  printf 'user settings: %s/settings.json\n' "$claude_config_dir"
   printf 'tools: %s\n' "$tools"
   printf 'tools source: %s\n' "$tools_source"
   printf 'subagents: %s\n' "$(tool_state Agent)"
@@ -215,8 +207,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'mcp: %s\n' "$mcp_state"
   printf 'chrome: %s\n' "$chrome_state"
   printf 'skills and slash commands: %s\n' "$commands_state"
-  printf 'compaction: %s\n' "$compact_profile"
-  printf 'permission mode: %s\n' "${CLAUDE_KISS_PERMISSION_MODE:-default}"
+  printf 'permission mode: default\n'
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then
@@ -243,7 +234,6 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   check_claude_capability '--settings' --settings "$settings"
   check_claude_capability '--tools' --tools "$tools"
   check_claude_capability '--permission-mode' --permission-mode default
-  check_claude_capability '--autocompact' --autocompact auto
   check_claude_capability '--strict-mcp-config' --strict-mcp-config
   check_claude_capability '--disable-slash-commands' --disable-slash-commands
   check_claude_capability '--no-chrome' --no-chrome
@@ -258,7 +248,7 @@ if [ "${CLAUDE_KISS_CLAUDE_MD:-1}" = "0" ]; then
 fi
 
 if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
-  export CLAUDE_CONFIG_DIR="${CLAUDE_KISS_CONFIG_DIR:-$HOME/.local/state/claude-kiss/config}"
+  export CLAUDE_CONFIG_DIR="$claude_config_dir"
   mkdir -p "$CLAUDE_CONFIG_DIR"
 fi
 
@@ -266,7 +256,6 @@ user_setting_sources=0
 user_settings=0
 user_system_prompt=0
 user_tools=0
-user_autocompact=0
 user_permission_mode=0
 user_chrome=0
 has_mcp_config=0
@@ -276,26 +265,14 @@ for argument in "$@"; do
     --settings|--settings=*) user_settings=1 ;;
     --system-prompt|--system-prompt=*|--system-prompt-file|--system-prompt-file=*) user_system_prompt=1 ;;
     --tools|--tools=*) user_tools=1 ;;
-    --autocompact|--autocompact=*) user_autocompact=1 ;;
     --permission-mode|--permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
     --chrome|--no-chrome) user_chrome=1 ;;
     --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
   esac
 done
 
-export DISABLE_AUTO_COMPACT=0
-export DISABLE_COMPACT=0
-case "$compact_profile" in
-  manual) export DISABLE_AUTO_COMPACT=1 ;;
-  off) export DISABLE_AUTO_COMPACT=1; export DISABLE_COMPACT=1 ;;
-esac
-
-if [ "$compact_profile" = "early" ] && [ "$user_autocompact" -eq 0 ]; then
-  set -- --autocompact "${CLAUDE_KISS_AUTOCOMPACT:-500k}" "$@"
-fi
-
 if [ "$user_setting_sources" -eq 0 ]; then
-  set -- --setting-sources "${CLAUDE_KISS_SETTING_SOURCES:-user}" "$@"
+  set -- --setting-sources user "$@"
 fi
 if [ "$user_settings" -eq 0 ]; then
   set -- --settings "$settings" "$@"
@@ -307,7 +284,7 @@ if [ "$user_tools" -eq 0 ]; then
   set -- --tools "$tools" "$@"
 fi
 if [ "$user_permission_mode" -eq 0 ]; then
-  set -- --permission-mode "${CLAUDE_KISS_PERMISSION_MODE:-default}" "$@"
+  set -- --permission-mode default "$@"
 fi
 
 if [ "$load_compact_memory" -eq 1 ]; then
@@ -335,7 +312,6 @@ if [ "${CLAUDE_KISS_DRY_RUN:-0}" = "1" ]; then
   printf 'command:'
   for argument in "$@"; do printf ' [%s]' "$argument"; done
   printf '\nprompt: %s\nsettings: %s\n' "$prompt" "$settings"
-  printf 'compaction: %s\n' "$compact_profile"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then
