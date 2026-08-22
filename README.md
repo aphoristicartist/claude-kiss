@@ -127,6 +127,8 @@ It gives Claude Code:
 - six core coding tools by default;
 - no bundled skills, workflows, connectors, artifacts, or agent view;
 - no normal MCP discovery unless explicitly requested;
+- no Claude in Chrome integration unless explicitly requested;
+- no built-in git workflow instructions or git status snapshot in the system prompt;
 - no attribution inserted into commits or PRs;
 - supported opt-outs for telemetry, error reporting, feedback, auto-update, and related
   nonessential traffic;
@@ -213,6 +215,8 @@ It also verifies that the installed Claude Code supports every native flag KISS 
 | Bundled skills/workflows | Available by default | Disabled |
 | Agent view, artifacts, connectors, remote control | Available through normal surface | Disabled |
 | MCP | Normal discovery | Strict mode; no unrelated discovery |
+| Claude in Chrome | Connects when the extension is available | Disabled |
+| Git instructions and status snapshot | Included in the system prompt | Removed |
 | Project/local settings | Loaded | Skipped by default |
 | User settings | Loaded | Loaded, so `/model` still works |
 | Repository memory | Normal behavior | Normal project-root behavior retained |
@@ -236,6 +240,7 @@ Claude flags, environment variables, and plain files you own.
 | Disable slash commands | `CLAUDE_KISS_DISABLE_COMMANDS=1 claude-kiss` |
 | Use one explicit MCP config | `claude-kiss --mcp-config ./mcp.json` |
 | Restore normal MCP discovery | `CLAUDE_KISS_MCP=1 claude-kiss` |
+| Restore the Claude in Chrome integration | `CLAUDE_KISS_CHROME=1 claude-kiss` |
 | Disable CLAUDE.md loading | `CLAUDE_KISS_CLAUDE_MD=0 claude-kiss` |
 | Use a separate Claude config directory | `CLAUDE_KISS_ISOLATED=1 claude-kiss` |
 | Replace the system prompt directly | `claude-kiss --system-prompt-file ./prompt.md` |

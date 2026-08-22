@@ -90,6 +90,7 @@ Useful overrides:
   CLAUDE_KISS_SETTING_SOURCES=list Settings scopes (default: user)
   CLAUDE_KISS_DISABLE_COMMANDS=1   Disable all skills and slash commands
   CLAUDE_KISS_MCP=1                Allow normal MCP discovery
+  CLAUDE_KISS_CHROME=1             Allow the Claude in Chrome integration
   CLAUDE_KISS_CLAUDE_MD=0          Do not load CLAUDE.md memory files
   CLAUDE_KISS_COMPACT=PROFILE      kiss, plain, early, manual, or off
   CLAUDE_KISS_AUTOCOMPACT=SIZE     Custom window for early mode (default: 500k)
@@ -98,10 +99,11 @@ Useful overrides:
   CLAUDE_KISS_DRY_RUN=1            Print the command instead of launching Claude
 
 Unless overridden, the wrapper replaces the vendor system prompt, uses the six core
-coding tools, removes bundled skills/workflows, disables MCP discovery, loads user
-settings so /model works, prompts for tool permissions instead of silently denying
-them, opts out of nonessential traffic, and leaves the normal `claude` command
-untouched. Pass --dangerously-skip-permissions or --permission-mode to override.
+coding tools, removes bundled skills/workflows, disables MCP discovery and the Claude
+in Chrome integration, loads user settings so /model works, prompts for tool
+permissions instead of silently denying them, opts out of nonessential traffic, and
+leaves the normal `claude` command untouched. Pass --dangerously-skip-permissions or
+--permission-mode to override.
 The default `kiss` compaction profile uses Claude's tuned automatic timing plus a
 concise editable compact-instructions memory.
 EOF
@@ -221,6 +223,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   check_claude_capability '--autocompact' --autocompact auto
   check_claude_capability '--strict-mcp-config' --strict-mcp-config
   check_claude_capability '--disable-slash-commands' --disable-slash-commands
+  check_claude_capability '--no-chrome' --no-chrome
   check_claude_capability '--add-dir' --add-dir "$home"
   check_claude_capability '--disallowedTools' --disallowedTools "Read($home/**)"
   [ "$capability_failed" -eq 0 ] || exit 1
@@ -242,6 +245,7 @@ user_system_prompt=0
 user_tools=0
 user_autocompact=0
 user_permission_mode=0
+user_chrome=0
 has_mcp_config=0
 for argument in "$@"; do
   case "$argument" in
@@ -251,6 +255,7 @@ for argument in "$@"; do
     --tools|--tools=*) user_tools=1 ;;
     --autocompact|--autocompact=*) user_autocompact=1 ;;
     --permission-mode|--permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
+    --chrome|--no-chrome) user_chrome=1 ;;
     --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
   esac
 done
@@ -297,6 +302,10 @@ if [ "${CLAUDE_KISS_MCP:-0}" != "1" ]; then
   if [ "$has_mcp_config" -eq 0 ]; then
     set -- --mcp-config '{"mcpServers":{}}' "$@"
   fi
+fi
+
+if [ "${CLAUDE_KISS_CHROME:-0}" != "1" ] && [ "$user_chrome" -eq 0 ]; then
+  set -- --no-chrome "$@"
 fi
 
 if [ "${CLAUDE_KISS_DRY_RUN:-0}" = "1" ]; then
