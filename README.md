@@ -53,6 +53,10 @@ read, and you can print the exact command before it runs.
 This is a launcher with strong defaults, not a guarantee that instructions are always
 obeyed. It cannot prompt away a model bug.
 
+[WHY.md](WHY.md) sets out the full case: what the problem is, what the measurements show,
+why the vendor's own concision fix addresses one symptom, and what this launcher does not
+fix.
+
 ## What KISS means here
 
 Keep It Simple, Stupid — pointed at the harness, not at your work:
@@ -73,7 +77,8 @@ The same rule applies to this project itself. It adds no telemetry, no auto-upda
 marketplace, no plugin format, and no configuration language of its own. Where Claude Code
 already has a mechanism, Claude KISS uses it instead of inventing a competing one.
 
-The full design rules are in [MANIFESTO.md](MANIFESTO.md).
+The reasoning behind the defaults is in [WHY.md](WHY.md); the full design rules are in
+[MANIFESTO.md](MANIFESTO.md).
 
 ## Install
 
