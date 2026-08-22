@@ -15,8 +15,8 @@ mkdir -p "$output" "$temporary/claude-kiss/bin" "$temporary/claude-kiss/config" 
   "$temporary/claude-kiss/prompt" "$temporary/claude-kiss/memory" \
   "$temporary/claude-kiss/evals" "$temporary/claude-kiss/tests"
 
-cp "$repo/install.sh" "$repo/LICENSE" "$repo/NOTICE" "$repo/README.md" "$repo/VERSION" \
-  "$temporary/claude-kiss/"
+cp "$repo/install.sh" "$repo/LICENSE" "$repo/NOTICE" "$repo/README.md" \
+  "$repo/MANIFESTO.md" "$repo/VERSION" "$temporary/claude-kiss/"
 cp "$repo/bin/claude-kiss" "$temporary/claude-kiss/bin/"
 cp "$repo/config/settings.json" "$temporary/claude-kiss/config/"
 cp "$repo/prompt/claude-kiss.md" "$temporary/claude-kiss/prompt/"
