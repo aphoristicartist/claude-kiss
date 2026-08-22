@@ -182,7 +182,7 @@ Four capabilities can be added for a task. These four are the whole list.
 CLAUDE_KISS_WEB=1 claude-kiss          # WebFetch, WebSearch
 CLAUDE_KISS_SKILLS=1 claude-kiss       # Skill
 CLAUDE_KISS_DELEGATION=1 claude-kiss   # Agent
-CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery and resource tools
+CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery, tool search, resources
 ```
 
 They combine, and there is no profile system to learn because your shell already has one:
@@ -261,7 +261,13 @@ four things. A tool that is not named is unavailable for the session, not merely
 | `CLAUDE_KISS_WEB=1` | `WebFetch`, `WebSearch` | Research, current documentation |
 | `CLAUDE_KISS_SKILLS=1` | `Skill` | Letting Claude load *your* skills when relevant |
 | `CLAUDE_KISS_DELEGATION=1` | `Agent` | Genuinely independent parallel work |
-| `CLAUDE_KISS_MCP=1` | MCP discovery, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `WaitForMcpServers` | Tools and data behind an MCP server |
+| `CLAUDE_KISS_MCP=1` | MCP discovery, `ToolSearch`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `WaitForMcpServers` | Tools and data behind an MCP server |
+
+`ToolSearch` is part of the MCP capability rather than a separate switch. Claude Code defers
+MCP tool definitions by default and loads them on demand through `ToolSearch`, so a session
+with MCP enabled and `ToolSearch` missing could see a server's tool names without being able
+to call them. `WaitForMcpServers` covers the same wait on deployments where tool search is
+off, such as a custom `ANTHROPIC_BASE_URL`.
 
 Enabling skills lets Claude reach ***your*** skills. It does not bring back `/code-review`
 and friends — Anthropic's bundled skills, workflows, plugin marketplace, and claude.ai skill
@@ -281,7 +287,6 @@ There is no variable, flag, or settings key in this project that turns any of th
 | Git worktrees | `EnterWorktree`, `ExitWorktree` |
 | Editors and language servers | `NotebookEdit`, `LSP`, `PowerShell` |
 | Conversation control | `AskUserQuestion`, `EndConversation`, `ReportFindings` |
-| Deferred tool loading | `ToolSearch` |
 
 Claude Code itself no longer provides the task-tracking tools by default on current models,
 so that row is largely already off upstream rather than something this launcher takes away.
@@ -312,7 +317,7 @@ this launcher exists to prevent. It says so and stops, instead of silently ignor
 | `CLAUDE_KISS_WEB=1` | Add `WebFetch` and `WebSearch` |
 | `CLAUDE_KISS_SKILLS=1` | Add `Skill`, so Claude can load your skills when relevant |
 | `CLAUDE_KISS_DELEGATION=1` | Add `Agent`, so Claude can run subagents |
-| `CLAUDE_KISS_MCP=1` | Restore MCP discovery and add the MCP resource tools |
+| `CLAUDE_KISS_MCP=1` | Restore MCP discovery and add the MCP tool-search and resource tools |
 | `CLAUDE_KISS_DISABLE_COMMANDS=1` | Also stop you typing `/skill-name` yourself |
 | `CLAUDE_KISS_CLAUDE_MD=0` | Do not load `CLAUDE.md` memory files |
 | `CLAUDE_KISS_COMPACT_MEMORY=path` | Use another compact policy directory, or `0` to skip it |
