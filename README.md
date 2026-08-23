@@ -254,6 +254,10 @@ four things. A tool that is not named is unavailable for the session, not merely
 | `Edit` | Makes targeted edits |
 | `Write` | Creates or overwrites files |
 
+`Bash` accepts `run_in_background`, but `TaskOutput` and `TaskStop` are not in the set. A
+detached command reports back when it exits and cannot be read or killed before then, so keep
+work in the foreground unless that is exactly what you want.
+
 **Available on request — the only four**
 
 | Variable | Adds | For |
@@ -261,20 +265,26 @@ four things. A tool that is not named is unavailable for the session, not merely
 | `CLAUDE_KISS_WEB=1` | `WebFetch`, `WebSearch` | Research, current documentation |
 | `CLAUDE_KISS_SKILLS=1` | `Skill` | Letting Claude load *your* skills when relevant |
 | `CLAUDE_KISS_DELEGATION=1` | `Agent` | Genuinely independent parallel work |
-| `CLAUDE_KISS_MCP=1` | MCP discovery, `ToolSearch`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `WaitForMcpServers` | Tools and data behind an MCP server |
+| `CLAUDE_KISS_MCP=1` | MCP discovery, `ToolSearch`, `ListMcpResourcesTool`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `WaitForMcpServers` | Tools and data behind an MCP server |
 
 `ToolSearch` is part of the MCP capability rather than a separate switch. Claude Code defers
 MCP tool definitions by default and loads them on demand through `ToolSearch`, so a session
 with MCP enabled and `ToolSearch` missing could see a server's tool names without being able
 to call them. `WaitForMcpServers` covers the same wait on deployments where tool search is
-off, such as a custom `ANTHROPIC_BASE_URL`.
+off, such as a custom `ANTHROPIC_BASE_URL`. `ReadMcpResourceDirTool` expands a directory
+resource that `ListMcpResourcesTool` can otherwise only name.
+
+Without the switch, the wrapper passes an empty MCP config and `--strict-mcp-config`, so no
+server loads. Passing your own `--mcp-config` replaces that empty config, as the precedence
+rule below says: those servers load and their tools reach Claude. The five tools above still
+need `CLAUDE_KISS_MCP=1`.
 
 Enabling skills lets Claude reach ***your*** skills. It does not bring back `/code-review`
 and friends — Anthropic's bundled skills, workflows, plugin marketplace, and claude.ai skill
 sync stay off in every session, and no setting in this project turns them back on.
 
 <details>
-<summary><strong>Off, permanently</strong> — every tool that stays disabled</summary>
+<summary><strong>Off, permanently</strong> — every documented tool that stays disabled</summary>
 
 There is no variable, flag, or settings key in this project that turns any of these on.
 
@@ -290,6 +300,12 @@ There is no variable, flag, or settings key in this project that turns any of th
 
 Claude Code itself no longer provides the task-tracking tools by default on current models,
 so that row is largely already off upstream rather than something this launcher takes away.
+
+The table is Anthropic's [tools reference][tools] minus the six coding tools and the four
+capabilities. The binary carries more than that reference lists — claude.ai design and project
+tools, plugin and connector suggestions, a REPL, memory-store tools, self-hosted runner tools,
+and others belonging to surfaces this launcher does not run. Those stay off as well: `--tools`
+denies every built-in the session does not name, documented or not.
 
 </details>
 
@@ -409,3 +425,4 @@ Claude KISS is an independent project. It is not produced by, endorsed by, or af
 Anthropic.
 
 [opus5]: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5
+[tools]: https://code.claude.com/docs/en/tools-reference

@@ -315,11 +315,22 @@ grep -q '\[--tools\] \[Bash,Glob,Grep,Read,Edit,Write,Skill\]' "$temporary/skill
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_MCP=1 \
   "$repo_dir/bin/claude-kiss" >"$temporary/mcp-tools.txt"
 # ToolSearch must ship with MCP: tool search is on by default, so without it a session
-# can see a server's deferred tool names but cannot load them.
-grep -q 'ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers\]' \
+# can see a server's deferred tool names but cannot load them. ReadMcpResourceDirTool must
+# ship with it too, or a listed directory resource can never be expanded.
+grep -q 'ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,ReadMcpResourceDirTool,WaitForMcpServers\]' \
   "$temporary/mcp-tools.txt"
 refute "$temporary/web.txt" 'ToolSearch' \
   'ToolSearch must belong to the MCP capability, not to any other switch'
+refute "$temporary/web.txt" 'Mcp' \
+  'the MCP resource tools must belong to the MCP capability, not to any other switch'
+# A capability is only inspectable if the README names what it adds.
+for mcp_tool in ToolSearch ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool \
+  WaitForMcpServers; do
+  grep -q "\`$mcp_tool\`" "$repo_dir/README.md" || {
+    printf 'error: README does not name the MCP tool %s\n' "$mcp_tool" >&2
+    exit 1
+  }
+done
 
 # Chrome is not one of the four, so it stays off no matter what.
 grep -q -- '--no-chrome' "$temporary/web.txt"
