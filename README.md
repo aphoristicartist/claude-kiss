@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/mark.svg" width="112" height="112" alt="Claude KISS geometric K mark">
+  <img src="assets/mark.svg" width="112" height="112" alt="Claude KISS K monogram">
 </p>
 
 <h1 align="center">Claude KISS</h1>
 
-<p align="center"><strong>Claude Code, with a smaller default surface.</strong></p>
+<p align="center"><strong>Love the model. Control the harness.</strong></p>
 
 <p align="center">
   <a href="https://github.com/aphoristicartist/claude-kiss/actions/workflows/ci.yml"><img src="https://github.com/aphoristicartist/claude-kiss/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
@@ -19,13 +19,15 @@
   <a href="MANIFESTO.md">Manifesto</a>
 </p>
 
-Claude KISS is a transparent shell launcher for the Claude Code CLI you already use. It
-supplies a focused system prompt, passes six core coding tools, and keeps web, skills,
-delegation, and normal MCP discovery opt-in through four convenience switches.
+You can love Claude Code and still want control over the harness around it. Claude KISS is a
+transparent shell launcher for the Claude Code CLI you already use. It supplies a focused
+system prompt, passes six core coding tools, and keeps web, skills, delegation, and normal
+MCP discovery opt-in through four convenience switches.
 
 It is not a fork, proxy, agent framework, or background service. It launches the same
 `claude` binary with native flags. Your account and sessions remain available, and the normal
-`claude` command stays unchanged.
+`claude` command stays unchanged. You keep the model you value; you choose the instructions,
+tools, integrations, and handoffs that enter each KISS session.
 
 ## Install
 
@@ -73,6 +75,24 @@ Claude Code can still add an unremovable `EndConversation` tool in supported int
 sessions. MCP server tools are not filtered by `--tools`. Direct native arguments, user-owned
 settings, hooks, plugins, and repository configuration can also add behavior or surface.
 [REFERENCE.md](REFERENCE.md) documents the exact boundary.
+
+## Why this default
+
+The case for a smaller *relevant* surface is no longer just taste. Recent 2026 work finds
+that harness design changes reliability, cost, and instruction following:
+
+| Question | Recent finding | Claude KISS response |
+|---|---|---|
+| How many permanent rules can a model carry? | [Instruction Stacking Collapse](https://arxiv.org/abs/2608.02639) found adherence falling from about 96% with one instruction to as low as 20% with twenty. | Replace the vendor prompt instead of stacking another policy layer on top. |
+| What happens to real agent instruction files? | [Why Does CLAUDE.md Keep Growing?](https://arxiv.org/abs/2608.11095) tracked 247,694 instruction lifetimes: prompts grew 226%, while preserved rationale enabled removal of 99.3% of excess instructions and improved instruction following by up to 23.1%. | Keep persistent policy short, inspectable, and explain why a rule exists. |
+| Should every tool be visible all the time? | [How Many Tools Should an LLM Agent See?](https://arxiv.org/abs/2605.24660) retained 90.3% retrieval coverage with about seven tools visible on average, versus 90.8% with fifty. | Start with six coding tools; add task-specific capability for the session. |
+| Are planner-to-subagent handoffs free? | [Deep Agentic Search](https://arxiv.org/abs/2608.01507) scored simple semantic retrieval at 65.2% versus 46.2% for planner-to-subagent search, with each correct answer costing less than half as much; 41.8% of deep-search failures occurred at the handoff. | Keep delegation opt-in and use it for genuinely separable work. |
+| Is the fewest possible tools always best? | [The Devil Is in the Interface](https://arxiv.org/abs/2608.11386), across 11,700 trajectories, found that useful structured interfaces improved consistency and that Python CodeAct reduced steps and tokens, while scratchpad-style scaffolding had little effect. | Keep valuable mechanical primitives; remove ceremonial machinery. |
+
+This evidence does **not** say to remove every advanced capability. It supports a narrower
+claim: default to the smallest coherent surface for the task, then add complexity when it
+demonstrably earns its place. [WHY.md](WHY.md#what-recent-research-says) reviews the broader
+2026 literature, including counterevidence and limits.
 
 ## Add capability for one session
 
