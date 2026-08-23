@@ -1,0 +1,86 @@
+name: Bug report
+description: Report reproducible launcher, installer, documentation, or evaluator behavior.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Claude KISS. For vulnerabilities, use the private
+        **Report a vulnerability** form in the Security tab instead of this issue.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Launcher
+        - Installer, update, or uninstall
+        - Managed prompt, settings, or memory
+        - Documentation
+        - Evaluator
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: kiss-version
+    attributes:
+      label: Claude KISS version
+      description: Run `claude-kiss --version` when possible.
+      placeholder: 0.7.1
+    validations:
+      required: true
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: Run `claude --version`.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the operating system, shell, and installation method.
+      placeholder: macOS 15, zsh, default installer
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Describe the behavior and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest safe sequence that reproduces the problem.
+      placeholder: |
+        1. Run ...
+        2. Set ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Paste relevant `claude-kiss doctor` or dry-run output after removing secrets and personal paths.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed credentials, private source, and personal paths from this report.
+          required: true
