@@ -59,7 +59,8 @@ tools=$core_tools
 [ "$delegation_enabled" -eq 0 ] || tools="$tools,Agent"
 # ToolSearch loads MCP tools deferred by tool search, which is on by default.
 # WaitForMcpServers is the same wait on deployments where tool search is off.
-[ "$mcp_enabled" -eq 0 ] || tools="$tools,ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,WaitForMcpServers"
+# ReadMcpResourceDirTool expands directory resources that ListMcpResourcesTool only names.
+[ "$mcp_enabled" -eq 0 ] || tools="$tools,ToolSearch,ListMcpResourcesTool,ReadMcpResourceTool,ReadMcpResourceDirTool,WaitForMcpServers"
 compact_memory="${CLAUDE_KISS_COMPACT_MEMORY:-$home/memory}"
 compact_memory_source=managed
 if [ "${CLAUDE_KISS_COMPACT_MEMORY+x}" = x ]; then
