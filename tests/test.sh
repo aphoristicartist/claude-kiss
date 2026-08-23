@@ -4,8 +4,8 @@ set -eu
 repo_dir=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/claude-kiss-test.XXXXXX")
 version=$(cat "$repo_dir/VERSION")
-generated_release="$repo_dir/dist"
-trap 'rm -rf "$temporary" "$generated_release"' EXIT HUP INT TERM
+generated_release="$temporary/release"
+trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 
 expect_status() {
   expected_status=$1
@@ -32,6 +32,7 @@ refute() {
 }
 
 grep -q "version=\"$version\"" "$repo_dir/bin/claude-kiss"
+grep -Fqx '# Managed by Claude KISS install.sh.' "$repo_dir/bin/claude-kiss"
 grep -q "release_version=\${CLAUDE_KISS_VERSION:-$version}" "$repo_dir/install.sh"
 grep -q 'https://claude-kiss.com/install.sh' "$repo_dir/README.md"
 grep -q 'https://github.com/aphoristicartist/claude-kiss' "$repo_dir/install.sh"
@@ -246,19 +247,97 @@ installer_config="$temporary/installer-config"
 mkdir -p "$installer_config"
 printf 'preserve me\n' >"$installer_config/prompt.md"
 
-: >"$temporary/prefix/bin/claude-kiss-profile"
+cat >"$temporary/prefix/bin/claude-kiss-profile" <<'PROFILE'
+#!/bin/sh
+# claude-kiss-profile — named Claude KISS tool profiles
+profiles_dir=${CLAUDE_KISS_PROFILES_DIR:-unused}
+PROFILE
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   "$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check >/dev/null
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   "$repo_dir/install.sh" --prefix "$temporary/prefix" --no-path-check >/dev/null
 [ ! -e "$temporary/prefix/bin/claude-kiss-profile" ]
+[ -f "$temporary/prefix/share/claude-kiss/.claude-kiss-managed" ]
 CLAUDE_KISS_CONFIG_HOME="$installer_config" "$temporary/prefix/bin/claude-kiss" doctor
 
-"$repo_dir/build-release.sh" >"$temporary/release-build.txt"
+# Custom install paths are embedded as data, never executable shell source. Exercise the
+# characters that are meaningful to both shell quoting and sed replacement expressions.
+special_prefix="$temporary/prefix with 'quotes' & pipes|semi; dollar\$"
+special_data="$temporary/data with 'quotes' & pipes|semi; dollar\$"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$special_prefix" --data-dir "$special_data" \
+  --no-path-check >/dev/null
+[ -f "$special_data/.claude-kiss-managed" ]
+special_data_real=$(CDPATH='' cd -- "$special_data" && pwd -P)
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$special_prefix/bin/claude-kiss" doctor >"$temporary/special-path-doctor.txt"
+grep -F -q "home: $special_data_real" "$temporary/special-path-doctor.txt"
+
+# Uninstall removes only files owned by the installer, even inside a custom directory.
+touch "$special_data/keep.txt"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$special_prefix" --data-dir "$special_data" \
+  --uninstall >"$temporary/special-path-uninstall.txt"
+[ ! -e "$special_prefix/bin/claude-kiss" ]
+[ ! -e "$special_data/.claude-kiss-managed" ]
+[ ! -e "$special_data/prompt/claude-kiss.md" ]
+[ -f "$special_data/keep.txt" ]
+grep -q 'Preserved non-Claude-KISS files' "$temporary/special-path-uninstall.txt"
+
+# A current launcher installed with custom assets must not make an unmarked default data
+# path look like a legacy installation when --data-dir is accidentally omitted.
+mismatch_prefix="$temporary/mismatch-prefix"
+mismatch_data="$temporary/mismatch-data"
+mismatch_default="$mismatch_prefix/share/claude-kiss"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$mismatch_prefix" --data-dir "$mismatch_data" \
+  --no-path-check >/dev/null
+mkdir -p "$mismatch_default/prompt"
+printf 'unrelated\n' >"$mismatch_default/prompt/claude-kiss.md"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$mismatch_prefix" --uninstall \
+  >"$temporary/mismatch-uninstall.txt"
+[ -f "$mismatch_default/prompt/claude-kiss.md" ]
+[ -f "$mismatch_data/.claude-kiss-managed" ]
+grep -q 'Preserved unmarked data directory' "$temporary/mismatch-uninstall.txt"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$mismatch_prefix" --data-dir "$mismatch_data" \
+  --uninstall >/dev/null
+
+# Installer option meaning is independent of ordering, and an explicit CLI data path
+# overrides DATA_DIR from the environment.
+ordered_prefix="$temporary/ordered-prefix"
+ordered_data="$temporary/ordered-data"
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --data-dir "$ordered_data" --prefix "$ordered_prefix" \
+  --no-path-check >/dev/null
+[ -f "$ordered_data/.claude-kiss-managed" ]
+[ ! -e "$ordered_prefix/share/claude-kiss" ]
+CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --data-dir "$ordered_data" --prefix "$ordered_prefix" \
+  --uninstall >/dev/null
+
+cli_prefix="$temporary/cli-prefix"
+cli_data="$temporary/cli-data"
+environment_data="$temporary/environment-data"
+DATA_DIR="$environment_data" CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$cli_prefix" --data-dir "$cli_data" \
+  --no-path-check >/dev/null
+[ -f "$cli_data/.claude-kiss-managed" ]
+[ ! -e "$environment_data" ]
+DATA_DIR="$environment_data" CLAUDE_KISS_CONFIG_HOME="$installer_config" \
+  "$repo_dir/install.sh" --prefix "$cli_prefix" --data-dir "$cli_data" \
+  --uninstall >/dev/null
+
+OUTPUT_DIR="$generated_release" "$repo_dir/build-release.sh" >"$temporary/release-build.txt"
 [ -f "$generated_release/claude-kiss.tar.gz" ]
 [ -f "$generated_release/claude-kiss.tar.gz.sha256" ]
 [ -f "$generated_release/release.json" ]
 tar -tzf "$generated_release/claude-kiss.tar.gz" | grep -q '^claude-kiss/bin/claude-kiss$'
+first_release_checksum=$(cat "$generated_release/claude-kiss.tar.gz.sha256")
+OUTPUT_DIR="$generated_release" "$repo_dir/build-release.sh" \
+  >"$temporary/release-build-again.txt"
+[ "$(cat "$generated_release/claude-kiss.tar.gz.sha256")" = "$first_release_checksum" ]
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   CLAUDE_KISS_ARCHIVE="file://$generated_release/claude-kiss.tar.gz" \
   "$repo_dir/install.sh" --prefix "$temporary/release-prefix" --no-path-check >/dev/null
@@ -323,11 +402,11 @@ refute "$temporary/web.txt" 'ToolSearch' \
   'ToolSearch must belong to the MCP capability, not to any other switch'
 refute "$temporary/web.txt" 'Mcp' \
   'the MCP resource tools must belong to the MCP capability, not to any other switch'
-# A capability is only inspectable if the README names what it adds.
+# A capability is only inspectable if the technical reference names what it adds.
 for mcp_tool in ToolSearch ListMcpResourcesTool ReadMcpResourceTool ReadMcpResourceDirTool \
   WaitForMcpServers; do
-  grep -q "\`$mcp_tool\`" "$repo_dir/README.md" || {
-    printf 'error: README does not name the MCP tool %s\n' "$mcp_tool" >&2
+  grep -q "\`$mcp_tool\`" "$repo_dir/REFERENCE.md" || {
+    printf 'error: REFERENCE.md does not name the MCP tool %s\n' "$mcp_tool" >&2
     exit 1
   }
 done
@@ -398,6 +477,31 @@ argv_of "$temporary/direct-settings.txt" >"$temporary/direct-settings.cmd"
 grep -F -q -- "$direct_settings" "$temporary/direct-settings.cmd"
 refute "$temporary/direct-settings.cmd" 'config/settings.json' \
   'a direct --settings argument must not be paired with the managed settings'
+
+# Native option scanning stops at -- and does not reinterpret positional text as
+# launcher options.
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" -p -- --settings --tools \
+  >"$temporary/argument-separator.txt"
+grep -q "\[--settings\] \[$repo_dir/config/settings.json\]" \
+  "$temporary/argument-separator.txt"
+grep -q '\[--\] \[--settings\] \[--tools\]' "$temporary/argument-separator.txt"
+
+# Replaced environment-selected files are Claude's responsibility and are not prevalidated
+# by the launcher.
+CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_PROMPT="$temporary/missing-environment-prompt" \
+  CLAUDE_KISS_SETTINGS="$temporary/missing-environment-settings" \
+  "$repo_dir/bin/claude-kiss" --system-prompt direct \
+  --settings "$temporary/direct-settings-owned-by-claude" \
+  >"$temporary/replaced-environment-files.txt"
+grep -q '\[--system-prompt\] \[direct\]' "$temporary/replaced-environment-files.txt"
+grep -q '\[--settings\] \[.*/direct-settings-owned-by-claude\]' \
+  "$temporary/replaced-environment-files.txt"
+argv_of "$temporary/replaced-environment-files.txt" \
+  >"$temporary/replaced-environment-files.cmd"
+refute "$temporary/replaced-environment-files.cmd" 'missing-environment' \
+  'direct arguments must replace environment-selected prompt and settings files'
 
 CLAUDE_KISS_DRY_RUN=1 CLAUDE_KISS_HOME="$repo_dir" \
   "$repo_dir/bin/claude-kiss" --mcp-config ./mcp.json >"$temporary/direct-mcp.txt"
@@ -475,16 +579,63 @@ expect_status 2 env HOME="$temporary/fake-home" "$repo_dir/install.sh" \
   --prefix "$temporary/unsafe" --data-dir "$temporary/fake-home"
 expect_status 2 "$repo_dir/install.sh" --unknown-option
 expect_status 2 "$repo_dir/install.sh" --prefix
+expect_status 2 "$repo_dir/install.sh" --prefix ''
+expect_status 2 "$repo_dir/install.sh" --data-dir ''
 [ ! -e "$temporary/unsafe" ]
+
+# Reading the installer on stdin must download the requested archive even when the
+# current directory itself looks like a source package.
+if (
+  cd "$repo_dir"
+  CLAUDE_KISS_ARCHIVE="file:///definitely-missing-claude-kiss.tar.gz" \
+    sh -s -- --prefix "$temporary/stdin-prefix" --data-dir "$temporary/stdin-data" \
+    --no-path-check <"$repo_dir/install.sh"
+) >/dev/null 2>&1; then
+  printf 'error: stdin installer trusted assets from the current directory\n' >&2
+  exit 1
+fi
+[ ! -e "$temporary/stdin-prefix" ]
+[ ! -e "$temporary/stdin-data" ]
+
+newline_cwd=$(printf '%s\n%s' "$temporary/newline-cwd" suffix)
+mkdir -p "$newline_cwd"
+newline_status=0
+(
+  cd "$newline_cwd"
+  "$repo_dir/install.sh" --prefix relative-prefix --data-dir relative-data \
+    --no-path-check
+) >/dev/null 2>&1 || newline_status=$?
+[ "$newline_status" -eq 2 ] || {
+  printf 'error: expected newline-bearing cwd paths to be rejected, got %s\n' \
+    "$newline_status" >&2
+  exit 1
+}
+[ ! -e "$newline_cwd/relative-prefix" ]
+[ ! -e "$newline_cwd/relative-data" ]
 
 "$repo_dir/install.sh" --prefix "$temporary/empty-prefix" \
   --data-dir "$temporary/empty-data" --uninstall >"$temporary/uninstall-empty.txt"
 grep -q 'No claude-kiss installation found' "$temporary/uninstall-empty.txt"
 
+# Uninstall never claims or removes unrelated files that happen to use managed names.
+foreign_prefix="$temporary/foreign-prefix"
+foreign_data="$temporary/foreign-data"
+mkdir -p "$foreign_prefix/bin" "$foreign_data"
+printf '#!/bin/sh\nprintf foreign\\n\n' >"$foreign_prefix/bin/claude-kiss"
+printf '#!/bin/sh\nprintf foreign-profile\\n\n' >"$foreign_prefix/bin/claude-kiss-profile"
+printf 'keep\n' >"$foreign_data/keep.txt"
+"$repo_dir/install.sh" --prefix "$foreign_prefix" --data-dir "$foreign_data" \
+  --uninstall >"$temporary/uninstall-foreign.txt"
+[ -f "$foreign_prefix/bin/claude-kiss" ]
+[ -f "$foreign_prefix/bin/claude-kiss-profile" ]
+[ -f "$foreign_data/keep.txt" ]
+grep -q 'Preserved unrecognized launcher' "$temporary/uninstall-foreign.txt"
+
 python3 - "$repo_dir" "$generated_release" <<'PY'
 import hashlib
 import json
 import sys
+import tarfile
 from pathlib import Path
 
 repo, release = Path(sys.argv[1]), Path(sys.argv[2])
@@ -494,6 +645,20 @@ assert meta["version"] == (repo / "VERSION").read_text().strip()
 assert meta["sha256"] == hashlib.sha256(archive).hexdigest()
 assert meta["sha256"] == (release / "claude-kiss.tar.gz.sha256").read_text().strip()
 assert meta["archive"].endswith(f"v{meta['version']}/claude-kiss.tar.gz")
+expected = {
+    "claude-kiss",
+    *(f"claude-kiss/{directory}" for directory in ("assets", "bin", "config", "prompt", "memory", "evals", "tests")),
+    *(f"claude-kiss/{path}" for path in (
+        "install.sh", "LICENSE", "NOTICE", "README.md", "WHY.md", "MANIFESTO.md",
+        "REFERENCE.md", "CONTRIBUTING.md", "SECURITY.md", "VERSION",
+        "assets/mark.svg", "bin/claude-kiss", "config/settings.json", "prompt/claude-kiss.md",
+        "memory/CLAUDE.md", "evals/run_evals.py", "tests/test.sh",
+    )),
+}
+with tarfile.open(release / "claude-kiss.tar.gz", "r:gz") as package:
+    members = package.getmembers()
+assert {member.name for member in members} == expected
+assert all(member.uid == 0 and member.gid == 0 and member.mtime == 0 for member in members)
 PY
 
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \

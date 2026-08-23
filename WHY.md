@@ -1,7 +1,8 @@
 # Claude KISS: What, Why, How
 
 This document is the argument behind the project: what the problem actually is, why it is
-worth a launcher, and how Claude KISS addresses it. Every claim links to a source.
+worth a launcher, and how Claude KISS addresses it. Material external claims link to sources;
+claims about Claude KISS itself are inspectable in this repository.
 
 [README.md](README.md) covers installation and daily use. [MANIFESTO.md](MANIFESTO.md)
 covers the design rules. This file covers the reasoning.
@@ -11,9 +12,10 @@ covers the design rules. This file covers the reasoning.
 Claude KISS is a second launcher for the Claude Code you already have. Same binary, same
 account, same sessions — different defaults.
 
-It replaces the vendor system prompt with a concise builder-first one, starts sessions with
-the six core coding tools, and leaves ambient product features switched off until you ask
-for them. Your normal `claude` command is untouched.
+It replaces the vendor system prompt with a concise builder-first one, passes the six core
+coding tools, and uses managed settings to turn off ambient product features. Those are strong
+defaults rather than a sealed boundary: native settings, hooks, plugins, MCP servers, and
+required Claude Code tools can still add surface. Your normal `claude` command is untouched.
 
 It is not a fork, a proxy, an agent framework, or a plugin marketplace. It is one shell
 script that assembles native Claude Code flags, and you can print the exact command before
@@ -52,10 +54,10 @@ and handing you the tuning. The question this project answers is where that tuni
 
 ### What it looks like when nobody does the tuning
 
-The most-shared example of recent months began as a request to fix a sitemap on some legacy
-HTML. It ended as a full rebuild — new colour palette, unrequested copy, replaced images, a
-broken animation — with the original files' only backup deleted along the way, [as reported
-from an August 2026 r/ClaudeAI thread][incident].
+A reported example from August 2026 began as a request to fix a sitemap on legacy HTML. It
+ended as a full rebuild — new colour palette, unrequested copy, replaced images, a broken
+animation — with the original files' only backup deleted along the way, [according to a
+secondary account of an r/ClaudeAI thread][incident].
 
 Treat that as community anecdote rather than measurement. It is included because it
 separates two problems that get discussed as one: the scope expansion was survivable, and
@@ -113,16 +115,13 @@ It is also narrow by construction, and the [output styles documentation][styles]
 - **It stops at the main conversation.** "A subagent runs its own system prompt, so styles
   don't change how subagents respond."
 
-Claude Code's creator described it as ["a quick band aid"][bandaid] while a longer-term fix
-is in progress. That is a fair description and not a criticism: verbosity was the cheapest
-symptom to fix and the most complained about.
-
-But verbosity costs output tokens. Scope expansion costs a deleted backup. Shortening the
-summary does not touch the second one.
+It solves a narrower problem than this launcher: verbosity costs output tokens, while scope
+expansion can alter or delete user work. Shortening the summary does not address the second
+problem.
 
 ## How
 
-Claude KISS applies the same tuning one layer lower — at the launcher — so it reaches
+Claude KISS applies much of the same tuning one layer lower — at the launcher — so it reaches
 behaviour, tools, and product surface rather than tone alone.
 
 ### 1. Replace the prompt instead of appending to it
@@ -140,7 +139,7 @@ behaviour; Claude KISS ships that guidance as a default instead of leaving it as
 | "Before your first tool call, say in one sentence what you're about to do. While working, give a brief update only when you find something important or change direction. When you finish, lead with the outcome." | "Before the first tool call, say at most one short sentence about what you are doing. While working, report only an important finding, direction change, or blocker … Lead with the outcome." |
 | "Only correct an earlier statement when the error would change the user's code, conclusions, or decisions." | "Correct an earlier statement only when the correction changes the user's code, conclusions, or decisions." |
 | "Match the length of written documents to what the task needs … do not pad with filler sections, redundant summaries, or boilerplate." | "Match a requested document to its needed length and substance without padding." |
-| Remove explicit verification instructions; they cause over-verification. | "Prefer a narrow check first and broaden only while uncertainty remains … do not repeat a passed deterministic check unless an input changed." |
+| Remove instructions that cause automatic re-checking and separate verification passes. | Retains proportional verification for code changes, but says to start narrow and not repeat a passed deterministic check unless an input changed. |
 | `<tone_preference>` reminder near the end of a long prompt. | Ships a `<tone_preference>` block as the last thing in the prompt. |
 
 One consequence of replacing the prompt is worth stating plainly, because it is a real
@@ -166,7 +165,7 @@ Sessions start with `Bash`, `Glob`, `Grep`, `Read`, `Edit`, `Write`. The `Agent`
 in that list, so eager delegation is unavailable by default rather than merely discouraged —
 a stronger version of the deterministic caps the Opus 5 guide recommends.
 
-Four capabilities can be added for a task, and only four:
+Four convenience switches add common capabilities for a task:
 
 ```sh
 CLAUDE_KISS_WEB=1 claude-kiss          # WebFetch, WebSearch
@@ -178,40 +177,46 @@ CLAUDE_KISS_MCP=1 claude-kiss          # MCP discovery, tool search, resources
 This is [MANIFESTO.md](MANIFESTO.md) §4: the right capability set is task-relative, so it
 belongs on the command line rather than in permanent configuration.
 
-There is deliberately no switch that turns everything on, and `--tools` is refused rather
-than passed through. A launcher whose entire purpose is a defensible default surface should
-not ship a one-word bypass of it. If you want the full product, the full product still
-exists and is called `claude`.
+There is deliberately no convenience switch that turns everything on, and `--tools` is
+refused rather than passed through. Native settings, hooks, plugins, and MCP configuration
+remain available, so this is a defensible managed default rather than a claim that every
+extension path is sealed. If you want the ordinary product surface, it still exists and is
+called `claude`.
 
 ### 3. Leave ambient surface off
 
-Bundled skills and workflows, agent view, artifacts, connectors, remote control, Claude in
-Chrome, plugin marketplace autoinstall, claude.ai skill sync, auto memory, git instructions
-in the prompt, telemetry, surveys, error reporting, and auto-update all start disabled. MCP
-is strict — no discovery unless you enable it.
+The managed settings disable bundled skills and workflows, agent view, artifacts, connectors,
+remote control, plugin marketplace autoinstall, claude.ai skill sync, auto memory, git
+instructions in the prompt, telemetry, surveys, error reporting, and auto-update. The launcher
+also disables Claude in Chrome. Replacing the settings file can replace its opt-outs.
 
-Anthropic's own skills and workflows stay off even when you enable the skills capability.
-`CLAUDE_KISS_SKILLS=1` lets Claude reach *your* skills when they are relevant; it does not
-bring back `/code-review` and the rest. That is the distinction [MANIFESTO.md](MANIFESTO.md)
-§7 draws: a skill should add knowledge you chose, not occupy every session because it
-shipped in the box.
+MCP starts with strict empty configuration. `CLAUDE_KISS_MCP=1` restores normal discovery, and
+a direct `--mcp-config` can load the servers it names even without that switch. Tools exposed
+by connected MCP servers are not filtered by the built-in `--tools` list.
+
+Under the managed settings, Anthropic's bundled skills and workflows stay off even when you
+enable the skills capability. `CLAUDE_KISS_SKILLS=1` lets Claude reach *your* skills when they
+are relevant; it does not itself bring back `/code-review` and the rest. That is the
+distinction [MANIFESTO.md](MANIFESTO.md) §7 draws: a skill should add knowledge you chose, not
+occupy every session because it shipped in the box.
 
 This is the same advice as "disable any you're not actively using," applied as a default
 rather than as cleanup you remember to do.
 
-Settings are the deliberate exception. User, project, and local settings all load, so
-`/model`, your account defaults, and a repository's own configuration keep working. Claude
-Code already gates a first-time codebase behind [trust verification][security], so skipping
-project settings would duplicate a native guard rather than add one — and [MANIFESTO.md](MANIFESTO.md)
-§10 says to prefer the native mechanism. The full tool list, enabled and disabled, is in
-[README.md](README.md#default-tools).
+Settings are the deliberate exception. User, project, and local settings all load, so account
+defaults and repository configuration keep working; slash commands such as `/model` remain
+enabled separately. Their hooks and plugins can also run. Claude Code already gates a
+first-time codebase behind [trust verification][security], so skipping project settings would
+duplicate a native guard rather than add one — and [MANIFESTO.md](MANIFESTO.md) §10 says to
+prefer the native mechanism. The exact tool and extension boundary is in
+[REFERENCE.md](REFERENCE.md#tool-surface).
 
 ### 4. Give compaction a job
 
-Compaction timing stays Claude's. Claude KISS adds a handoff policy requiring a compaction
-to record the objective, acceptance criteria, changed files, validation state, and the next
-action, and requiring the model to reconstruct state from that handoff rather than assume
-prior work is intact.
+Compaction timing stays Claude's. Claude KISS adds a handoff policy instructing Claude to
+record the objective, acceptance criteria, changed files, validation state, and next action
+during compaction, then reconstruct state from that handoff rather than assume prior work is
+intact. It is a model instruction, not an enforcement mechanism.
 
 This uses the native mechanism: Claude Code already supports [custom compaction
 instructions][costs] through `CLAUDE.md`. Claude KISS supplies a policy rather than a new
@@ -221,12 +226,13 @@ subsystem.
 
 ```sh
 CLAUDE_KISS_DRY_RUN=1 claude-kiss   # print the exact native command
-claude-kiss doctor                  # effective configuration, and where each value came from
+claude-kiss doctor                  # resolved launcher inputs and core compatibility checks
 ```
 
-`doctor` verifies that your Claude Code supports every flag the launcher uses and fails
-loudly if one is missing rather than silently falling back. Hidden behaviour is the thing
-this project exists to remove; it would be a poor result to add some.
+`doctor` reports launcher-owned inputs and verifies the core flags the launcher needs. It
+fails loudly when one of those checks is missing rather than silently falling back. It does
+not expand loaded settings, hooks, plugins, MCP servers, or arbitrary native arguments; use
+dry-run to inspect the actual argument vector for a launch.
 
 ## What this does not fix
 
@@ -235,15 +241,15 @@ this project exists to remove; it would be a poor result to add some.
 - **It does not change model routing.** Classifier false positives and safety fallbacks
   between models are server-side. Choosing the model with `/model` is the extent of the
   control available here.
-- **It does not change your plan limits.** It reduces per-session overhead. Quotas are
-  unaffected.
+- **It does not change your plan limits.** It aims to reduce avoidable per-session overhead.
+  Quotas are unaffected.
 - **It does not shrink your conversation.** Claude Code "sends your full conversation with
   every request," so a long session costs what a long session costs. `/clear` between
   unrelated tasks still does more for that than any launcher.
-- **It is not a sandbox.** `Bash` is still available and still powerful. Limiting the tool
-  list shapes attention; it is not filesystem isolation. Hiding MCP does not make a server
-  safe. Review MCP configs, repository instructions, and permissions exactly as you would
-  without this launcher.
+- **It is not a sandbox.** `Bash` is still available and still powerful. Limiting built-in
+  tools shapes attention; it is not filesystem isolation and does not filter MCP server
+  tools. Loaded settings can run hooks and plugins. Review MCP configs, repository
+  instructions, settings, and permissions exactly as you would without this launcher.
 
 ## Sources
 
@@ -259,8 +265,6 @@ this project exists to remove; it would be a poor result to add some.
   codebases, which is what gates project settings from an unfamiliar repository.
 - [Claude Code issue #83510][issue83510] — community-run verbosity measurements across model
   generations. User-reported, not a vendor benchmark.
-- [Concise output style write-up][bandaid] — secondary source for the "quick band aid"
-  characterisation.
 - [Over-engineering incident write-up][incident] — secondary source for the August 2026
   r/ClaudeAI thread. Anecdote, not measurement.
 
@@ -271,7 +275,6 @@ Documentation moves. If a quotation here no longer matches the linked page, trus
 [styles]: https://code.claude.com/docs/en/output-styles
 [costs]: https://code.claude.com/docs/en/costs
 [issue83510]: https://github.com/anthropics/claude-code/issues/83510
-[bandaid]: https://explainx.ai/blog/claude-code-concise-output-style-config-august-2026
 [incident]: https://www.explainx.ai/blog/opus-5-over-engineering-reddit-reaction-august-2026
 
 ---
