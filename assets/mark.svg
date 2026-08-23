@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img">
+  <title>Claude KISS geometric K mark</title>
+  <rect width="128" height="128" fill="#f3f0e8"/>
+  <rect x="6" y="6" width="116" height="116" fill="none" stroke="#11100e" stroke-width="8"/>
+  <path d="M28 24h18v80H28z" fill="#11100e"/>
+  <path d="m43 57 39-33h25L56 68z" fill="#1746a2"/>
+  <path d="m43 60 14-12 51 56H82z" fill="#d83a2e"/>
+  <circle cx="98" cy="29" r="10" fill="#f2c230" stroke="#11100e" stroke-width="4"/>
+</svg>

@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Publish release
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Verify tag matches VERSION
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          expected_tag="v$(cat VERSION)"
+          if [ "$RELEASE_TAG" != "$expected_tag" ]; then
+            echo "Release tag $RELEASE_TAG does not match $expected_tag" >&2
+            exit 1
+          fi
+
+      - name: Build release artifacts
+        run: ./build-release.sh
+
+      - name: Verify archive checksum
+        working-directory: dist
+        run: |
+          printf '%s  claude-kiss.tar.gz\n' "$(cat claude-kiss.tar.gz.sha256)" \
+            | sha256sum --check --strict -
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            dist/claude-kiss.tar.gz \
+            dist/claude-kiss.tar.gz.sha256 \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Claude KISS ${RELEASE_TAG#v}" \
+            --verify-tag

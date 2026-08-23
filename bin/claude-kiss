@@ -1,4 +1,5 @@
 #!/bin/sh
+# Managed by Claude KISS install.sh.
 set -eu
 
 version="0.7.0"
@@ -41,8 +42,8 @@ elif [ -f "$config_home/settings.json" ]; then
 fi
 setting_sources=user,project,local
 
-# The core coding set is fixed. Four capabilities can be added; nothing else can.
-# For Claude Code's full product surface, use the `claude` command.
+# The launcher owns the core built-in tool allowlist. Four convenience switches add common
+# capabilities; native settings and explicit Claude arguments remain visible and inspectable.
 core_tools=Bash,Glob,Grep,Read,Edit,Write
 web_enabled=0
 skills_enabled=0
@@ -109,7 +110,7 @@ Usage:
   claude-kiss --help               Show this help
   claude-kiss --version            Show wrapper and Claude versions
 
-Capabilities (off unless enabled; these four are the only ones):
+Convenience capabilities (off unless enabled):
   CLAUDE_KISS_WEB=1                WebFetch and WebSearch
   CLAUDE_KISS_SKILLS=1             Skill, so Claude can load your skills when relevant
   CLAUDE_KISS_DELEGATION=1         Agent, so Claude can run subagents
@@ -131,10 +132,10 @@ Unless overridden, the wrapper replaces the vendor system prompt, uses the six c
 coding tools, removes bundled skills/workflows, disables MCP discovery and the Claude
 in Chrome integration, loads user, project, and local settings, prompts for tool
 permissions instead of silently denying them, opts out of nonessential traffic, and
-leaves the normal `claude` command untouched. Web, skills, delegation, and MCP are
-the only capabilities you can add; for Claude Code's full product surface, use the
-`claude` command. Any direct Claude argument, such as --permission-mode or
---setting-sources, replaces the matching KISS default.
+leaves the normal `claude` command untouched. Web, skills, delegation, and MCP are the
+four capabilities exposed as KISS environment switches. Native settings and explicit
+Claude arguments remain in effect. Any direct Claude argument, such as --permission-mode
+or --setting-sources, replaces the matching KISS default.
 Compaction keeps Claude's own timing and adds a concise editable compact-instructions
 memory. Change it with Claude's native --autocompact, DISABLE_AUTO_COMPACT, and
 DISABLE_COMPACT.
@@ -181,11 +182,58 @@ if ! command -v "$claude_bin" >/dev/null 2>&1; then
   exit 127
 fi
 
-if [ ! -f "$prompt" ]; then
+reject_capability_argument() {
+  cat >&2 <<EOF
+claude-kiss: $1 is not accepted, because the capability surface is the point.
+
+Add a capability for this session instead:
+  CLAUDE_KISS_WEB=1          WebFetch and WebSearch
+  CLAUDE_KISS_SKILLS=1       Skill
+  CLAUDE_KISS_DELEGATION=1   Agent
+  CLAUDE_KISS_MCP=1          MCP discovery, tool search, resources
+
+For Claude Code's full product surface, use the claude command.
+EOF
+  exit 2
+}
+
+user_setting_sources=0
+user_settings=0
+user_system_prompt=0
+user_permission_mode=0
+has_mcp_config=0
+scan_options=1
+skip_option_value=0
+for argument in "$@"; do
+  if [ "$scan_options" -eq 0 ]; then
+    continue
+  fi
+  if [ "$skip_option_value" -eq 1 ]; then
+    skip_option_value=0
+    continue
+  fi
+  case "$argument" in
+    --) scan_options=0 ;;
+    --setting-sources) user_setting_sources=1; skip_option_value=1 ;;
+    --setting-sources=*) user_setting_sources=1 ;;
+    --settings) user_settings=1; skip_option_value=1 ;;
+    --settings=*) user_settings=1 ;;
+    --system-prompt|--system-prompt-file) user_system_prompt=1; skip_option_value=1 ;;
+    --system-prompt=*|--system-prompt-file=*) user_system_prompt=1 ;;
+    --tools|--tools=*) reject_capability_argument --tools ;;
+    --chrome) reject_capability_argument --chrome ;;
+    --permission-mode) user_permission_mode=1; skip_option_value=1 ;;
+    --permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
+    --mcp-config) has_mcp_config=1; skip_option_value=1 ;;
+    --mcp-config=*) has_mcp_config=1 ;;
+  esac
+done
+
+if [ "$user_system_prompt" -eq 0 ] && [ ! -f "$prompt" ]; then
   printf 'claude-kiss: prompt not found: %s\n' "$prompt" >&2
   exit 1
 fi
-if [ ! -f "$settings" ]; then
+if [ "$user_settings" -eq 0 ] && [ ! -f "$settings" ]; then
   printf 'claude-kiss: settings not found: %s\n' "$settings" >&2
   exit 1
 fi
@@ -266,38 +314,6 @@ if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
   export CLAUDE_CONFIG_DIR="$claude_config_dir"
   mkdir -p "$CLAUDE_CONFIG_DIR"
 fi
-
-reject_capability_argument() {
-  cat >&2 <<EOF
-claude-kiss: $1 is not accepted, because the capability surface is the point.
-
-Add a capability for this session instead:
-  CLAUDE_KISS_WEB=1          WebFetch and WebSearch
-  CLAUDE_KISS_SKILLS=1       Skill
-  CLAUDE_KISS_DELEGATION=1   Agent
-  CLAUDE_KISS_MCP=1          MCP discovery, tool search, resources
-
-For Claude Code's full product surface, use the claude command.
-EOF
-  exit 2
-}
-
-user_setting_sources=0
-user_settings=0
-user_system_prompt=0
-user_permission_mode=0
-has_mcp_config=0
-for argument in "$@"; do
-  case "$argument" in
-    --setting-sources|--setting-sources=*) user_setting_sources=1 ;;
-    --settings|--settings=*) user_settings=1 ;;
-    --system-prompt|--system-prompt=*|--system-prompt-file|--system-prompt-file=*) user_system_prompt=1 ;;
-    --tools|--tools=*) reject_capability_argument --tools ;;
-    --chrome) reject_capability_argument --chrome ;;
-    --permission-mode|--permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
-    --mcp-config|--mcp-config=*) has_mcp_config=1 ;;
-  esac
-done
 
 if [ "$user_setting_sources" -eq 0 ]; then
   set -- --setting-sources "$setting_sources" "$@"
