@@ -76,6 +76,29 @@ sessions. MCP server tools are not filtered by `--tools`. Direct native argument
 settings, hooks, plugins, and repository configuration can also add behavior or surface.
 [REFERENCE.md](REFERENCE.md) documents the exact boundary.
 
+## A cleaner starting context
+
+Claude KISS can also reduce the context spent before the first task. In this captured Opus 5
+comparison, `/context` estimated ordinary Claude Code at 41.6k tokens and the Claude KISS
+default at 8.2k: 33.4k fewer tokens (about 80%), leaving 991.8k rather than 958.4k free. The
+largest visible difference was system-tool context, which fell from 24.5k to 3.9k.
+
+<table>
+  <tr>
+    <th>Ordinary Claude Code · 41.6k used</th>
+    <th>Claude KISS default · 8.2k used</th>
+  </tr>
+  <tr>
+    <td><img src="assets/context-ordinary.png" width="723" alt="Claude Code context view showing 41.6k of 1m tokens used, including 24.5k for system tools, 8.9k for memory files, and 2.7k for skills"></td>
+    <td><img src="assets/context-kiss.png" width="712" alt="Claude KISS context view showing 8.2k of 1m tokens used, including 3.9k for system tools and 1.9k for memory files"></td>
+  </tr>
+</table>
+
+This is one observed snapshot, not a universal benchmark or guarantee. `/context` reports
+estimates, and totals vary with the Claude Code version, model, account features, settings,
+and user or project memory. Enabling more capability in Claude KISS intentionally spends more
+of the context window.
+
 ## Why this default
 
 The case for a smaller *relevant* surface is no longer just taste. Recent 2026 work finds
