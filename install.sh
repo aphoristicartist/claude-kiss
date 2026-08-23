@@ -243,7 +243,7 @@ claude --strict-mcp-config --disable-slash-commands --no-chrome --version >/dev/
 if [ -z "$source_dir" ] || [ ! -f "$source_dir/prompt/claude-kiss.md" ] || \
   [ ! -f "$source_dir/config/settings.json" ] || \
   [ ! -f "$source_dir/memory/CLAUDE.md" ] || [ ! -f "$source_dir/bin/claude-kiss" ]; then
-  release_version=${CLAUDE_KISS_VERSION:-0.7.0}
+  release_version=${CLAUDE_KISS_VERSION:-0.7.1}
   if [ -n "${CLAUDE_KISS_ARCHIVE:-}" ]; then
     archive=$CLAUDE_KISS_ARCHIVE
   else

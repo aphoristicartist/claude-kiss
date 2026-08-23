@@ -2,7 +2,7 @@
 # Managed by Claude KISS install.sh.
 set -eu
 
-version="0.7.0"
+version="0.7.1"
 claude_bin="${CLAUDE_BIN:-claude}"
 default_home=__CLAUDE_KISS_DEFAULT_HOME__
 home="${CLAUDE_KISS_HOME:-$default_home}"
