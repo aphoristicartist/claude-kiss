@@ -68,6 +68,43 @@ report the current generation producing roughly 1.8–2.1× the output tokens of
 one on identical prompts at no additional reasoning effort. Those figures are user-run, not
 vendor benchmarks; the direction matches Anthropic's own documentation above.
 
+### What recent research says
+
+The strongest version of the KISS argument is not "complexity is bad." It is that an agent
+should start with a small, relevant instruction and capability surface, and that every added
+layer should pay for itself. The most relevant 2026 results, newest first as of August 23,
+support different parts of that claim:
+
+| Date | Study | What the result supports here |
+|---|---|---|
+| Aug 18 | [A Jagged Frontier][jagged-frontier] | Across two scaffolds and four models, the simpler mini-SWE-agent scaffold was more robust than OpenCode to semantics-preserving repository changes. Harness architecture affects robustness; a richer scaffold is not automatically a safer one. |
+| Aug 11 | [The Devil Is in the Interface][devil-interface] | Across 11,700 trajectories, structured low-level interfaces improved consistency and Python CodeAct used 41.6% fewer steps and 56.3% fewer tokens, while scratchpad-style cognitive tools had limited effect. Keep useful mechanical primitives, not ceremony—and do not confuse KISS with Bash-only minimalism. |
+| Aug 11 | [Why Does CLAUDE.md Keep Growing?][catastrophic-remembering] | In 247,694 instruction lifetimes across 1,867 repositories, agent prompts grew 226%. Preserving rationale removed 99.3% of excess instructions in a controlled setting and improved real-world instruction following by up to 23.1%. Persistent context needs reasons, pruning, and maintenance. |
+| Aug 2 | [Deep Agentic Search][deep-agentic-search] | For repository-level read-only questions, semantic retrieval answered 65.2% correctly versus 46.2% for planner-to-subagent search, with each correct answer costing less than half as much. Handoffs produced 41.8% of deep-search failures. Delegation has a real information boundary and should earn its place. |
+| Jul 31 | [Instruction Stacking Collapse][instruction-stacking] | As simultaneous verified instructions rose from one to twenty, adherence fell from about 96% to as low as 20%. Permanent rule count is a reliability concern, not just a token concern. |
+| Jul 21 | [Prompt Design at Scale][prompt-scale] | Across five models, perfect compliance reached zero by eighty simultaneous rules regardless of format or system-versus-user placement; recall also degraded near context limits. Formatting cannot rescue an overloaded policy surface. |
+| Jun 8 | [Context Rot in AI-Assisted Software Development][context-rot] | A preliminary scan found stale code references in 23% of 356 repositories using persistent agent context such as `CLAUDE.md`, `AGENTS.md`, and `.cursorrules`. Always-loaded context becomes another documentation artifact that can rot. |
+| Jun 1 | [Too Many Tools, Too Much Confusion?][too-many-tools] | This peer-reviewed study found semantic collisions and selection degradation in large tool catalogs, and improved recall by decomposing work into small, step-local candidate sets. It supports relevant exposure rather than one flat catalog—and also shows that orchestration can help at genuine scale. |
+| May 23 | [How Many Tools Should an LLM Agent See?][how-many-tools] | An adaptive policy exposed about seven tools instead of fifty while retaining nearly identical retrieval coverage (90.3% versus 90.8%); its downstream Claude Sonnet 4.6 evaluation also favored the shorter adaptive lists. Tool visibility should be task-sized. |
+| May 18 | [Overeager Coding Agents][overeager-agents] | Across roughly 7,500 runs on Claude Code, Codex CLI, Gemini CLI, and OpenHands, explicit consent boundaries reduced unwanted out-of-scope actions by 11.9–17.2 percentage points. A few strong scope invariants can materially change behavior. |
+| Apr 1 | [Yet Even Less Is Even Better][even-less] | Filtering low-value and noisy content from training trajectories produced stronger software-agent training with fewer examples. This is indirect evidence for the launcher, but it supports the broader information-quality-over-volume hypothesis. |
+
+Together, these papers motivate a design hypothesis rather than prove this particular
+launcher: **small relevant instruction surface + small relevant tool surface + few handoffs +
+useful mechanical primitives beats unnecessary always-on scaffolding.**
+
+The qualification matters. [The Devil Is in the Interface][devil-interface] shows that the
+right structured tools can outperform extreme Bash-only minimalism. [Too Many Tools, Too
+Much Confusion?][too-many-tools] finds value in retrieval and decomposition when catalogs are
+genuinely large. Other adaptive multi-agent systems can outperform simple scaffolds on tasks
+that reward specialization or parallelism. The defensible KISS claim is therefore **default
+minimal, task-relative, and complexity on evidence**—not that complexity is always harmful.
+
+Except for the Algorithms article, these are preprints. They are recent, not independent
+replications, and several study narrower settings than an end-to-end coding session. They
+strengthen the rationale for measuring the harness; they do not remove the need to evaluate
+Claude KISS itself.
+
 ### Ambient context costs real money
 
 Claude Code's [cost guidance][costs] is explicit that context size drives spend, and its
@@ -276,6 +313,17 @@ Documentation moves. If a quotation here no longer matches the linked page, trus
 [costs]: https://code.claude.com/docs/en/costs
 [issue83510]: https://github.com/anthropics/claude-code/issues/83510
 [incident]: https://www.explainx.ai/blog/opus-5-over-engineering-reddit-reaction-august-2026
+[jagged-frontier]: https://arxiv.org/abs/2608.18389
+[devil-interface]: https://arxiv.org/abs/2608.11386
+[catastrophic-remembering]: https://arxiv.org/abs/2608.11095
+[deep-agentic-search]: https://arxiv.org/abs/2608.01507
+[instruction-stacking]: https://arxiv.org/abs/2608.02639
+[prompt-scale]: https://arxiv.org/abs/2607.19257
+[context-rot]: https://arxiv.org/abs/2606.09090
+[too-many-tools]: https://doi.org/10.3390/a19060447
+[how-many-tools]: https://arxiv.org/abs/2605.24660
+[overeager-agents]: https://arxiv.org/abs/2605.18583
+[even-less]: https://arxiv.org/abs/2604.00824
 
 ---
 
