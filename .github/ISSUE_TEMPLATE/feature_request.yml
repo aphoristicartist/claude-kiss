@@ -1,0 +1,55 @@
+name: Feature request
+description: Propose a focused change that belongs in the Claude KISS layer.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Claude KISS intentionally stays small. Please read the manifesto and open an issue
+        before building a new capability, integration layer, service, dependency, or
+        configuration language.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete user problem is not handled today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful behavior and its interface.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Why Claude KISS?
+      description: Explain why this belongs in the launcher instead of Claude Code, a repository setting, a hook, a skill, or an MCP server.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Added surface and tradeoffs
+      description: Identify new instructions, tools, configuration, dependencies, or maintenance burden.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: I read the project manifesto and reference.
+          required: true

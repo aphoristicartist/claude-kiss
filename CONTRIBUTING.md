@@ -5,6 +5,7 @@ inspectable, or useful without creating a second agent runtime.
 
 Read [MANIFESTO.md](MANIFESTO.md) for the design rules and
 [REFERENCE.md](REFERENCE.md) for the current mechanics before changing behavior.
+Participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## What makes a good change
 
@@ -116,3 +117,7 @@ Keep pull requests narrow. Include:
 - documentation or release implications.
 
 Do not include generated `dist/`, evaluator results, caches, or unrelated formatting changes.
+
+Pull requests target `main`. That branch requires the `lint`, `ubuntu-latest`, and
+`macos-latest` checks to pass and all review conversations to be resolved. Maintainers use
+squash merges, so write a clear pull-request title that can become the final commit subject.
