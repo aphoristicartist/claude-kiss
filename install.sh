@@ -198,9 +198,12 @@ if [ "$mode" = uninstall ]; then
   fi
 
   if [ "$managed_data" -eq 1 ]; then
-    rm -f "$data_dir/prompt/claude-kiss.md" "$data_dir/config/settings.json" \
-      "$data_dir/memory/CLAUDE.md" "$data_dir/.claude-kiss-managed"
-    rmdir "$data_dir/prompt" "$data_dir/config" "$data_dir/memory" 2>/dev/null || :
+    rm -f "$data_dir/prompt/claude-kiss.md" "$data_dir/prompt/prog-python.md" \
+      "$data_dir/config/settings.json" "$data_dir/config/prog-python-settings.json" \
+      "$data_dir/bin/prog-python-guard" "$data_dir/memory/CLAUDE.md" \
+      "$data_dir/.claude-kiss-managed"
+    rmdir "$data_dir/prompt" "$data_dir/config" "$data_dir/bin" \
+      "$data_dir/memory" 2>/dev/null || :
     if rmdir "$data_dir" 2>/dev/null; then
       printf 'Removed %s\n' "$data_dir"
     else
@@ -241,7 +244,10 @@ claude --strict-mcp-config --disable-slash-commands --no-chrome --version >/dev/
 }
 
 if [ -z "$source_dir" ] || [ ! -f "$source_dir/prompt/claude-kiss.md" ] || \
+  [ ! -f "$source_dir/prompt/prog-python.md" ] || \
   [ ! -f "$source_dir/config/settings.json" ] || \
+  [ ! -f "$source_dir/config/prog-python-settings.json" ] || \
+  [ ! -x "$source_dir/bin/prog-python-guard" ] || \
   [ ! -f "$source_dir/memory/CLAUDE.md" ] || [ ! -f "$source_dir/bin/claude-kiss" ]; then
   release_version=${CLAUDE_KISS_VERSION:-0.7.1}
   if [ -n "${CLAUDE_KISS_ARCHIVE:-}" ]; then
@@ -298,11 +304,24 @@ if [ -z "$source_dir" ] || [ ! -f "$source_dir/prompt/claude-kiss.md" ] || \
 fi
 
 [ -f "$source_dir/prompt/claude-kiss.md" ] || { printf 'Missing prompt/claude-kiss.md\n' >&2; exit 1; }
+[ -f "$source_dir/prompt/prog-python.md" ] || { printf 'Missing prompt/prog-python.md\n' >&2; exit 1; }
 [ -f "$source_dir/config/settings.json" ] || { printf 'Missing config/settings.json\n' >&2; exit 1; }
+[ -f "$source_dir/config/prog-python-settings.json" ] || {
+  printf 'Missing config/prog-python-settings.json\n' >&2
+  exit 1
+}
+[ -x "$source_dir/bin/prog-python-guard" ] || {
+  printf 'Missing executable bin/prog-python-guard\n' >&2
+  exit 1
+}
 [ -f "$source_dir/memory/CLAUDE.md" ] || { printf 'Missing memory/CLAUDE.md\n' >&2; exit 1; }
 
 claude --settings "$source_dir/config/settings.json" --version >/dev/null 2>&1 || {
   printf 'Your Claude Code lacks or rejects --settings.\n' >&2
+  exit 1
+}
+claude --settings "$source_dir/config/prog-python-settings.json" --version >/dev/null 2>&1 || {
+  printf 'Your Claude Code rejects the prog-python settings.\n' >&2
   exit 1
 }
 claude --add-dir "$source_dir" --disallowedTools "Read($source_dir/**)" --version >/dev/null 2>&1 || {
@@ -311,13 +330,18 @@ claude --add-dir "$source_dir" --disallowedTools "Read($source_dir/**)" --versio
 }
 
 umask 022
-mkdir -p "$prefix/bin" "$data_dir/prompt" "$data_dir/config" "$data_dir/memory"
+mkdir -p "$prefix/bin" "$data_dir/prompt" "$data_dir/config" "$data_dir/bin" \
+  "$data_dir/memory"
 # Stage beside the canonical assets so each final replacement is a same-filesystem move.
 temporary=$(mktemp -d "$data_dir/.install.XXXXXX")
 executable_temporary=$(mktemp -d "$prefix/bin/.claude-kiss-install.XXXXXX")
 
 cp "$source_dir/prompt/claude-kiss.md" "$temporary/claude-kiss.md"
+cp "$source_dir/prompt/prog-python.md" "$temporary/prog-python.md"
 cp "$source_dir/config/settings.json" "$temporary/settings.json"
+cp "$source_dir/config/prog-python-settings.json" "$temporary/prog-python-settings.json"
+cp "$source_dir/bin/prog-python-guard" "$temporary/prog-python-guard"
+chmod 755 "$temporary/prog-python-guard"
 cp "$source_dir/memory/CLAUDE.md" "$temporary/compact-CLAUDE.md"
 # Embed the data directory as a shell literal. Escape it once for single-quoted shell
 # syntax, then once for the sed replacement expression.
@@ -331,7 +355,10 @@ printf 'managed by claude-kiss install.sh\n' > "$temporary/.claude-kiss-managed"
 # Keep each update atomic. Managed assets are replaced; `claude-kiss init` owns
 # persistent user forks under CLAUDE_KISS_CONFIG_HOME.
 mv "$temporary/claude-kiss.md" "$data_dir/prompt/claude-kiss.md"
+mv "$temporary/prog-python.md" "$data_dir/prompt/prog-python.md"
 mv "$temporary/settings.json" "$data_dir/config/settings.json"
+mv "$temporary/prog-python-settings.json" "$data_dir/config/prog-python-settings.json"
+mv "$temporary/prog-python-guard" "$data_dir/bin/prog-python-guard"
 mv "$temporary/compact-CLAUDE.md" "$data_dir/memory/CLAUDE.md"
 mv "$executable_temporary/claude-kiss" "$prefix/bin/claude-kiss"
 mv "$temporary/.claude-kiss-managed" "$data_dir/.claude-kiss-managed"

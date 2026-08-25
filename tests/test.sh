@@ -47,6 +47,7 @@ import json
 from pathlib import Path
 
 settings = json.loads(Path("config/settings.json").read_text())
+experiment_settings = json.loads(Path("config/prog-python-settings.json").read_text())
 assert settings["disableBundledSkills"] is True
 assert settings["disableWorkflows"] is True
 assert settings["disableArtifact"] is True
@@ -65,10 +66,61 @@ assert settings["autoMemoryEnabled"] is False
 # Compaction timing stays the user's choice: no managed override of the vendor default.
 assert "autoCompactEnabled" not in settings
 assert settings["includeGitInstructions"] is False
+for key, value in settings.items():
+    assert experiment_settings[key] == value, key
+assert experiment_settings["permissions"] == {
+    "defaultMode": "dontAsk",
+    "disableAutoMode": "disable",
+    "disableBypassPermissionsMode": "disable",
+    "allow": ["Bash(prog *)", "Bash(python3 *)"],
+}
+hook = experiment_settings["hooks"]["PreToolUse"]
+assert hook[0]["matcher"] == "Bash"
+assert hook[0]["hooks"][0]["command"] == '"$CLAUDE_KISS_PROG_PYTHON_GUARD"'
 # Prompt and compact-memory behavior is protected by evals/run_evals.py.
 # Asserting exact sentences here would freeze wording instead of outcomes.
 assert Path("prompt/claude-kiss.md").read_text().strip()
+assert Path("prompt/prog-python.md").read_text().strip()
 assert Path("memory/CLAUDE.md").read_text().strip()
+
+guard = Path("bin/prog-python-guard")
+assert guard.stat().st_mode & 0o111
+
+
+def guard_result(command):
+    import subprocess
+
+    completed = subprocess.run(
+        [str(guard.resolve())],
+        input=json.dumps({"tool_input": {"command": command}}),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout
+
+
+for allowed in [
+    "prog",
+    "prog run -- cargo test --workspace",
+    "python3 -c 'from pathlib import Path; print(Path.cwd())'",
+    'python3 -c "\nfrom pathlib import Path\nprint(Path.cwd())\n"',
+]:
+    assert guard_result(allowed) == "", allowed
+
+for denied in [
+    "ls -la",
+    "prog run -- cargo test && git status",
+    "python3 -c 'print(1)' | cat",
+    "python3 -c 'print(1)' <<< value",
+    "python3 -c 'print(1)'\nrm file",
+    "python3 -c 'print($(pwd))'",
+]:
+    decision = json.loads(guard_result(denied))
+    output = decision["hookSpecificOutput"]
+    assert output["hookEventName"] == "PreToolUse"
+    assert output["permissionDecision"] == "deny"
+    assert output["permissionDecisionReason"], denied
 
 launcher = Path("bin/claude-kiss").read_text()
 for forced_env in [
@@ -92,11 +144,29 @@ PY
 "$repo_dir/bin/claude-kiss" --help | grep -q 'system-prompt'
 python3 "$repo_dir/evals/run_evals.py" --dry-run \
   --tasks concise_answer --output-dir "$temporary/eval-dry-run" >/dev/null
+python3 "$repo_dir/evals/run_evals.py" --dry-run --include-prog-python \
+  --tasks concise_answer --output-dir "$temporary/prog-python-eval-dry-run" >/dev/null
+python3 - "$temporary/prog-python-eval-dry-run/summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary = json.loads(Path(sys.argv[1]).read_text())
+assert list(summary["summaries"]) == ["kiss", "prog-python", "regular"]
+records = {record["runner"]: record for record in summary["records"]}
+assert records["prog-python"]["environment"] == {
+    "CLAUDE_KISS_EXPERIMENT": "prog-python"
+}
+assert "--permission-mode" not in records["prog-python"]["command"]
+assert "--permission-mode" in records["regular"]["command"]
+assert "--permission-mode" in records["kiss"]["command"]
+PY
 
 python3 - "$repo_dir" <<'PY'
 import importlib.util
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 repo = Path(__import__("sys").argv[1])
 spec = importlib.util.spec_from_file_location("claude_kiss_evals", repo / "evals" / "run_evals.py")
@@ -114,6 +184,39 @@ assert list(evals.TASKS) == [
     "review_no_edit",
     "long_horizon_handoff",
 ]
+
+report_records = [
+    {
+        "runner": runner,
+        "task": "concise_answer",
+        "passed": True,
+        "checks": {"answer": True},
+        "result_words": 1,
+        "result_chars": 4,
+        "output_tokens": 2,
+        "cost_usd": 0.01,
+        "wall_seconds": 1.0,
+        "changed_files": [],
+        "models": ["test-model"],
+        "num_turns": 1,
+    }
+    for runner in evals.RUNNER_LABELS
+]
+report_summaries = {
+    runner: evals.aggregate(
+        [record for record in report_records if record["runner"] == runner]
+    )
+    for runner in evals.RUNNER_LABELS
+}
+with tempfile.TemporaryDirectory() as report_directory:
+    report_path = Path(report_directory) / "RESULTS.md"
+    evals.write_report(
+        SimpleNamespace(report=str(report_path)), report_records, report_summaries
+    )
+    report = report_path.read_text()
+assert "| Metric | Regular Claude | Claude KISS | Prog + Python |" in report
+assert "| Mean agent turns | +0.0% | +0.0% |" in report
+assert "| Prog + Python | test-model |" in report
 
 
 def check_expected(name, mutate, result="done"):
@@ -334,6 +437,8 @@ OUTPUT_DIR="$generated_release" "$repo_dir/build-release.sh" >"$temporary/releas
 [ -f "$generated_release/claude-kiss.tar.gz.sha256" ]
 [ -f "$generated_release/release.json" ]
 tar -tzf "$generated_release/claude-kiss.tar.gz" | grep -q '^claude-kiss/bin/claude-kiss$'
+tar -tzf "$generated_release/claude-kiss.tar.gz" | \
+  grep -q '^claude-kiss/bin/prog-python-guard$'
 first_release_checksum=$(cat "$generated_release/claude-kiss.tar.gz.sha256")
 OUTPUT_DIR="$generated_release" "$repo_dir/build-release.sh" \
   >"$temporary/release-build-again.txt"
@@ -343,6 +448,9 @@ CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   "$repo_dir/install.sh" --prefix "$temporary/release-prefix" --no-path-check >/dev/null
 CLAUDE_KISS_CONFIG_HOME="$installer_config" \
   "$temporary/release-prefix/bin/claude-kiss" doctor >/dev/null
+[ -x "$temporary/release-prefix/share/claude-kiss/bin/prog-python-guard" ]
+[ -f "$temporary/release-prefix/share/claude-kiss/prompt/prog-python.md" ]
+[ -f "$temporary/release-prefix/share/claude-kiss/config/prog-python-settings.json" ]
 
 CLAUDE_KISS_DRY_RUN=1 "$temporary/prefix/bin/claude-kiss" test |
   grep -q -- '--system-prompt-file'
@@ -358,6 +466,58 @@ grep -q -- '--add-dir' "$temporary/dry-run.txt"
 grep -q -- '--disallowedTools' "$temporary/dry-run.txt"
 refute "$temporary/dry-run.txt" '--autocompact' \
   'compaction timing must stay with Claude unless the user passes --autocompact'
+
+# The prog + Python treatment keeps one Claude tool and two executable entry points.
+profile_path="$temporary/profile-path"
+mkdir -p "$profile_path"
+printf '#!/bin/sh\nexit 0\n' >"$profile_path/prog"
+chmod +x "$profile_path/prog"
+PATH="$profile_path:$PATH" CLAUDE_KISS_DRY_RUN=1 \
+  CLAUDE_KISS_EXPERIMENT=prog-python CLAUDE_KISS_HOME="$repo_dir" \
+  "$repo_dir/bin/claude-kiss" hello >"$temporary/prog-python.txt"
+grep -q '^experiment: prog-python$' "$temporary/prog-python.txt"
+grep -q '\[--tools\] \[Bash\]' "$temporary/prog-python.txt"
+grep -q '\[--permission-mode\] \[dontAsk\]' "$temporary/prog-python.txt"
+grep -q '\[--setting-sources\] \[\]' "$temporary/prog-python.txt"
+refute "$temporary/prog-python.txt" '--disable-slash-commands' \
+  'prog-python must retain built-in session commands such as /model and /context'
+grep -q -- '--strict-mcp-config' "$temporary/prog-python.txt"
+grep -q 'mcpServers' "$temporary/prog-python.txt"
+grep -F -q "$repo_dir/prompt/prog-python.md" "$temporary/prog-python.txt"
+grep -F -q "$repo_dir/config/prog-python-settings.json" "$temporary/prog-python.txt"
+refute "$temporary/prog-python.txt" 'Glob,Grep,Read,Edit,Write' \
+  'prog-python must not expose the normal file tools'
+refute "$temporary/prog-python.txt" 'ToolSearch' \
+  'prog-python must not expose MCP discovery'
+
+PATH="$profile_path:$PATH" CLAUDE_KISS_EXPERIMENT=prog-python \
+  CLAUDE_KISS_HOME="$repo_dir" "$repo_dir/bin/claude-kiss" doctor \
+  >"$temporary/prog-python-doctor.txt"
+grep -q '^experiment: prog-python$' "$temporary/prog-python-doctor.txt"
+grep -q '^tools: Bash$' "$temporary/prog-python-doctor.txt"
+grep -q '^setting sources: $' "$temporary/prog-python-doctor.txt"
+grep -q '^slash commands: enabled$' "$temporary/prog-python-doctor.txt"
+grep -q '^permission mode: dontAsk$' "$temporary/prog-python-doctor.txt"
+grep -F -q "command guard: $repo_dir/bin/prog-python-guard" \
+  "$temporary/prog-python-doctor.txt"
+
+for conflicting_capability in CLAUDE_KISS_WEB CLAUDE_KISS_SKILLS \
+  CLAUDE_KISS_DELEGATION CLAUDE_KISS_MCP; do
+  expect_status 2 env PATH="$profile_path:$PATH" CLAUDE_KISS_HOME="$repo_dir" \
+    CLAUDE_KISS_EXPERIMENT=prog-python "$conflicting_capability=1" \
+    "$repo_dir/bin/claude-kiss"
+done
+expect_status 2 env PATH="$profile_path:$PATH" CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_EXPERIMENT=prog-python "$repo_dir/bin/claude-kiss" \
+  --mcp-config ./mcp.json
+expect_status 2 env PATH="$profile_path:$PATH" CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_EXPERIMENT=prog-python "$repo_dir/bin/claude-kiss" \
+  --settings "$repo_dir/config/settings.json"
+expect_status 2 env PATH="$profile_path:$PATH" CLAUDE_KISS_HOME="$repo_dir" \
+  CLAUDE_KISS_EXPERIMENT=prog-python "$repo_dir/bin/claude-kiss" \
+  --plugin-dir ./plugin
+expect_status 2 env CLAUDE_KISS_HOME="$repo_dir" CLAUDE_KISS_EXPERIMENT=unknown \
+  "$repo_dir/bin/claude-kiss"
 
 CLAUDE_KISS_DRY_RUN=1 "$repo_dir/bin/claude-kiss" --dangerously-skip-permissions \
   >"$temporary/bypass-dry-run.txt"
@@ -651,7 +811,9 @@ expected = {
     *(f"claude-kiss/{path}" for path in (
         "install.sh", "LICENSE", "NOTICE", "README.md", "WHY.md", "MANIFESTO.md",
         "REFERENCE.md", "CONTRIBUTING.md", "SECURITY.md", "VERSION",
-        "assets/mark.svg", "bin/claude-kiss", "config/settings.json", "prompt/claude-kiss.md",
+        "assets/mark.svg", "bin/claude-kiss", "bin/prog-python-guard",
+        "config/settings.json", "config/prog-python-settings.json",
+        "prompt/claude-kiss.md", "prompt/prog-python.md",
         "memory/CLAUDE.md", "evals/run_evals.py", "tests/test.sh",
     )),
 }

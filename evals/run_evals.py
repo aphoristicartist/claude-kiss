@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run paired Claude Code / Claude KISS behavior evaluations."""
+"""Run Claude Code / Claude KISS behavior evaluations."""
 
 from __future__ import annotations
 
@@ -21,6 +21,11 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_REGULAR = "claude"
 DEFAULT_KISS = str(REPO / "bin" / "claude-kiss")
+RUNNER_LABELS = {
+    "regular": "Regular Claude",
+    "kiss": "Claude KISS",
+    "prog-python": "Prog + Python",
+}
 
 
 TaskCheck = Callable[[dict[str, Any]], bool]
@@ -338,14 +343,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--regular-command", default=DEFAULT_REGULAR)
     parser.add_argument("--kiss-command", default=DEFAULT_KISS)
     parser.add_argument(
+        "--include-prog-python",
+        action="store_true",
+        help="also run the fixed CLAUDE_KISS_EXPERIMENT=prog-python treatment",
+    )
+    parser.add_argument(
         "--model",
         default=os.environ.get("CLAUDE_KISS_EVAL_MODEL"),
-        help="same model alias/name for both runners; omit to use each user default",
+        help="same model alias/name for all runners; omit to use each user default",
     )
     parser.add_argument(
         "--effort",
         default=os.environ.get("CLAUDE_KISS_EVAL_EFFORT"),
-        help="optional same effort level for both runners",
+        help="optional same effort level for all runners",
     )
     parser.add_argument(
         "--budget",
@@ -439,6 +449,7 @@ def file_delta(before: dict[str, bytes], after: dict[str, bytes]) -> dict[str, A
 
 
 def invocation(
+    runner: str,
     command: str,
     prompt: str,
     args: argparse.Namespace,
@@ -449,12 +460,12 @@ def invocation(
         prompt,
         "--output-format",
         "json",
-        "--permission-mode",
-        "bypassPermissions",
         "--max-budget-usd",
         str(args.budget),
         "--no-session-persistence",
     ]
+    if runner != "prog-python":
+        result.extend(["--permission-mode", "bypassPermissions"])
     if args.model:
         result.extend(["--model", args.model])
     if args.effort:
@@ -490,17 +501,24 @@ def run_one(
         fixture = Path(temporary) / "fixture"
         write_fixture(fixture, task)
         before = snapshot(fixture)
-        cmd = invocation(command, task["prompt"], args)
+        cmd = invocation(runner, command, task["prompt"], args)
+        runner_environment = (
+            {"CLAUDE_KISS_EXPERIMENT": "prog-python"}
+            if runner == "prog-python"
+            else {}
+        )
         if args.dry_run:
             return {
                 "runner": runner,
                 "task": task_name,
                 "dry_run": True,
                 "command": cmd,
+                "environment": runner_environment,
             }
 
         env = os.environ.copy()
         env["CLAUDE_KISS_HOME"] = str(REPO)
+        env.update(runner_environment)
         started = time.monotonic()
         try:
             process = subprocess.run(
@@ -533,6 +551,7 @@ def run_one(
             "task": task_name,
             "prompt": task["prompt"],
             "command": cmd,
+            "environment": runner_environment,
             "exit_code": process.returncode,
             "parse_error": parse_error,
             "is_error": bool(payload.get("is_error", process.returncode != 0)),
@@ -619,17 +638,22 @@ def write_report(
     records: list[dict[str, Any]],
     summaries: dict[str, dict[str, Any]],
 ) -> None:
-    regular = [r for r in records if r["runner"] == "regular"]
-    kiss = [r for r in records if r["runner"] == "kiss"]
+    runner_names = list(summaries)
+    records_by_runner = {
+        runner: [record for record in records if record["runner"] == runner]
+        for runner in runner_names
+    }
     task_count = len({r["task"] for r in records if not r.get("dry_run")})
     lines = [
         "# Claude KISS evaluation results",
         "",
-        "This is a **paired smoke benchmark**, not a statistical claim. Each task uses",
-        "an identical isolated fixture and prompt. Both runners receive the same requested",
-        "model configuration, effort, budget, permission mode, output format, timeout, and",
-        "no-session-persistence settings. Ordinary Claude keeps its normal launch defaults;",
-        "Claude KISS uses its replacement prompt and lean tool surface.",
+        "This is a **matched smoke benchmark**, not a statistical claim. Each task uses",
+        "an identical isolated fixture and prompt. Runners receive the same requested model",
+        "configuration, effort, budget, output format, timeout, and no-session-persistence",
+        "settings. Ordinary Claude keeps its normal launch defaults; Claude KISS uses its",
+        "replacement prompt and lean tool surface. The optional prog + Python treatment uses",
+        "its fixed `dontAsk` permission configuration rather than the other runners'",
+        "`bypassPermissions` mode.",
         "",
         "## Task design",
         "",
@@ -649,8 +673,10 @@ def write_report(
             "",
             "## Aggregate",
             "",
-            "| Metric | Regular Claude | Claude KISS |",
-            "|---|---:|---:|",
+            "| Metric | "
+            + " | ".join(RUNNER_LABELS[runner] for runner in runner_names)
+            + " |",
+            "|---|" + "---:|" * len(runner_names),
         ]
     )
     key_labels = [
@@ -665,18 +691,17 @@ def write_report(
         ("mean_changed_files", "Mean changed files", "{:.2f}"),
     ]
     for key, label, formatter in key_labels:
-        left = summaries["regular"].get(key)
-        right = summaries["kiss"].get(key)
-        lines.append(
-            f"| {label} | "
-            + ("n/a" if left is None else formatter.format(left))
-            + " | "
-            + ("n/a" if right is None else formatter.format(right))
-            + " |"
-        )
-    def pct(name: str) -> str:
-        left = summaries["regular"].get(name)
-        right = summaries["kiss"].get(name)
+        values = [summaries[runner].get(key) for runner in runner_names]
+        rendered = ["n/a" if value is None else formatter.format(value) for value in values]
+        lines.append(f"| {label} | " + " | ".join(rendered) + " |")
+
+    comparisons = [("KISS - regular", "regular", "kiss")]
+    if "prog-python" in summaries:
+        comparisons.append(("Prog + Python - KISS", "kiss", "prog-python"))
+
+    def pct(name: str, baseline: str, subject: str) -> str:
+        left = summaries[baseline].get(name)
+        right = summaries[subject].get(name)
         if left in (None, 0) or right is None:
             return "n/a"
         return f"{(right - left) / left * 100:+.1f}%"
@@ -684,17 +709,26 @@ def write_report(
     lines.extend(
         [
             "",
-            "## Relative deltas (KISS − regular)",
+            "## Relative deltas",
             "",
-            "| Metric | Delta |",
-            "|---|---:|",
-            f"| Mean result words | {pct('mean_result_words')} |",
-            f"| Mean result chars | {pct('mean_result_chars')} |",
-            f"| Mean reported output tokens | {pct('mean_output_tokens')} |",
-            f"| Mean agent turns | {pct('mean_num_turns')} |",
-            f"| Mean cache-read tokens | {pct('mean_cache_read_tokens')} |",
-            f"| Mean reported cost | {pct('mean_cost_usd')} |",
-            f"| Mean wall seconds | {pct('mean_wall_seconds')} |",
+            "| Metric | " + " | ".join(label for label, _, _ in comparisons) + " |",
+            "|---|" + "---:|" * len(comparisons),
+        ]
+    )
+    delta_metrics = [
+        ("Mean result words", "mean_result_words"),
+        ("Mean result chars", "mean_result_chars"),
+        ("Mean reported output tokens", "mean_output_tokens"),
+        ("Mean agent turns", "mean_num_turns"),
+        ("Mean cache-read tokens", "mean_cache_read_tokens"),
+        ("Mean reported cost", "mean_cost_usd"),
+        ("Mean wall seconds", "mean_wall_seconds"),
+    ]
+    for label, metric in delta_metrics:
+        values = [pct(metric, baseline, subject) for _, baseline, subject in comparisons]
+        lines.append(f"| {label} | " + " | ".join(values) + " |")
+    lines.extend(
+        [
             "",
             "## Per-task results",
             "",
@@ -727,8 +761,15 @@ def write_report(
             "",
             "| Runner | Claude models reported |",
             "|---|---|",
-            f"| Regular | {', '.join(sorted({m for r in regular for m in r.get('models', [])})) or 'n/a'} |",
-            f"| KISS | {', '.join(sorted({m for r in kiss for m in r.get('models', [])})) or 'n/a'} |",
+        ]
+    )
+    for runner in runner_names:
+        models = sorted(
+            {model for record in records_by_runner[runner] for model in record.get("models", [])}
+        )
+        lines.append(f"| {RUNNER_LABELS[runner]} | {', '.join(models) or 'n/a'} |")
+    lines.extend(
+        [
             "",
             "## Interpretation limits",
             "",
@@ -757,11 +798,14 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
 
     records: list[dict[str, Any]] = []
+    runner_commands = [
+        ("regular", args.regular_command),
+        ("kiss", args.kiss_command),
+    ]
+    if args.include_prog_python:
+        runner_commands.append(("prog-python", args.kiss_command))
     for task_name in task_names:
-        for runner, command in (
-            ("regular", args.regular_command),
-            ("kiss", args.kiss_command),
-        ):
+        for runner, command in runner_commands:
             print(f"Running {runner}:{task_name}...", file=sys.stderr, flush=True)
             record = run_one(runner, command, task_name, args)
             records.append(record)
@@ -769,8 +813,8 @@ def main() -> int:
             path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     summaries = {
-        "regular": aggregate([r for r in records if r["runner"] == "regular"]),
-        "kiss": aggregate([r for r in records if r["runner"] == "kiss"]),
+        runner: aggregate([record for record in records if record["runner"] == runner])
+        for runner, _ in runner_commands
     }
     machine = {
         "schema_version": 1,

@@ -72,6 +72,9 @@ or a precise answer. Inspect a planned invocation without spending budget:
 python3 evals/run_evals.py --dry-run --tasks scope_discipline
 ```
 
+Pass `--include-prog-python` to add the fixed prog + Python treatment to the same tasks. Live
+runs of that treatment require `prog` and `python3` in `PATH`.
+
 A live evaluator run is a smoke test, not a universal benchmark. Record the model, effort,
 budget, Claude Code version, date, and per-task results when publishing a comparison.
 

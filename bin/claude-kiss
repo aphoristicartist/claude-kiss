@@ -19,32 +19,60 @@ fi
 
 home=$(CDPATH='' cd -- "$home" && pwd -P)
 config_home="${CLAUDE_KISS_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/claude-kiss}"
+experiment="${CLAUDE_KISS_EXPERIMENT:-}"
+case "$experiment" in
+  ""|prog-python) ;;
+  *)
+    printf 'claude-kiss: unknown experiment: %s\n' "$experiment" >&2
+    printf 'supported experiments: prog-python\n' >&2
+    exit 2
+    ;;
+esac
+prog_python_enabled=0
+[ "$experiment" != prog-python ] || prog_python_enabled=1
 if [ "${CLAUDE_KISS_ISOLATED:-0}" = "1" ]; then
   claude_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.local/state/claude-kiss/config}"
 else
   claude_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 fi
-prompt="${CLAUDE_KISS_PROMPT:-$home/prompt/claude-kiss.md}"
+managed_prompt="$home/prompt/claude-kiss.md"
+managed_settings="$home/config/settings.json"
+if [ "$prog_python_enabled" -eq 1 ]; then
+  managed_prompt="$home/prompt/prog-python.md"
+  managed_settings="$home/config/prog-python-settings.json"
+fi
+prompt="${CLAUDE_KISS_PROMPT:-$managed_prompt}"
 prompt_source=managed
 if [ "${CLAUDE_KISS_PROMPT+x}" = x ]; then
   prompt_source=environment
+elif [ "$prog_python_enabled" -eq 1 ]; then
+  prompt_source=managed-experiment
 elif [ -f "$config_home/prompt.md" ]; then
   prompt="$config_home/prompt.md"
   prompt_source=user
 fi
-settings="${CLAUDE_KISS_SETTINGS:-$home/config/settings.json}"
+settings="${CLAUDE_KISS_SETTINGS:-$managed_settings}"
 settings_source=managed
 if [ "${CLAUDE_KISS_SETTINGS+x}" = x ]; then
   settings_source=environment
+elif [ "$prog_python_enabled" -eq 1 ]; then
+  settings_source=managed-experiment
 elif [ -f "$config_home/settings.json" ]; then
   settings="$config_home/settings.json"
   settings_source=user
 fi
 setting_sources=user,project,local
+default_permission_mode=default
+commands_disabled="${CLAUDE_KISS_DISABLE_COMMANDS:-0}"
+if [ "$prog_python_enabled" -eq 1 ]; then
+  setting_sources=
+  default_permission_mode=dontAsk
+fi
 
 # The launcher owns the core built-in tool allowlist. Four convenience switches add common
 # capabilities; native settings and explicit Claude arguments remain visible and inspectable.
 core_tools=Bash,Glob,Grep,Read,Edit,Write
+[ "$prog_python_enabled" -eq 0 ] || core_tools=Bash
 web_enabled=0
 skills_enabled=0
 delegation_enabled=0
@@ -53,6 +81,14 @@ mcp_enabled=0
 [ "${CLAUDE_KISS_SKILLS:-0}" != "1" ] || skills_enabled=1
 [ "${CLAUDE_KISS_DELEGATION:-0}" != "1" ] || delegation_enabled=1
 [ "${CLAUDE_KISS_MCP:-0}" != "1" ] || mcp_enabled=1
+
+if [ "$prog_python_enabled" -eq 1 ] && {
+  [ "$web_enabled" -eq 1 ] || [ "$skills_enabled" -eq 1 ] ||
+    [ "$delegation_enabled" -eq 1 ] || [ "$mcp_enabled" -eq 1 ];
+}; then
+  printf 'claude-kiss: prog-python cannot be combined with web, skills, delegation, or MCP\n' >&2
+  exit 2
+fi
 
 tools=$core_tools
 [ "$web_enabled" -eq 0 ] || tools="$tools,WebFetch,WebSearch"
@@ -116,6 +152,11 @@ Convenience capabilities (off unless enabled):
   CLAUDE_KISS_DELEGATION=1         Agent, so Claude can run subagents
   CLAUDE_KISS_MCP=1                MCP server discovery, tool search, and resources
 
+Experiment (off unless selected):
+  CLAUDE_KISS_EXPERIMENT=prog-python
+                                      Bash carrier limited to prog and python3;
+                                      no web, skills, delegation, or MCP
+
 Useful overrides:
   CLAUDE_BIN=path                  Claude executable (default: claude)
   CLAUDE_KISS_HOME=path            Installation/data directory
@@ -136,6 +177,10 @@ leaves the normal `claude` command untouched. Web, skills, delegation, and MCP a
 four capabilities exposed as KISS environment switches. Native settings and explicit
 Claude arguments remain in effect. Any direct Claude argument, such as --permission-mode
 or --setting-sources, replaces the matching KISS default.
+The prog-python experiment is intentionally stricter: it selects its own prompt, settings,
+empty setting sources, and dontAsk permission mode. Built-in session commands such as
+/model and /context remain available, while discovered and bundled skills stay disabled.
+Direct arguments cannot replace those treatment inputs.
 Compaction keeps Claude's own timing and adds a concise editable compact-instructions
 memory. Change it with Claude's native --autocompact, DISABLE_AUTO_COMPACT, and
 DISABLE_COMPACT.
@@ -202,6 +247,8 @@ user_settings=0
 user_system_prompt=0
 user_permission_mode=0
 has_mcp_config=0
+user_permission_rules=0
+user_experiment_extension=0
 scan_options=1
 skip_option_value=0
 for argument in "$@"; do
@@ -226,8 +273,30 @@ for argument in "$@"; do
     --permission-mode=*|--dangerously-skip-permissions) user_permission_mode=1 ;;
     --mcp-config) has_mcp_config=1; skip_option_value=1 ;;
     --mcp-config=*) has_mcp_config=1 ;;
+    --allowedTools|--allowed-tools|--disallowedTools|--disallowed-tools)
+      user_permission_rules=1; skip_option_value=1 ;;
+    --allowedTools=*|--allowed-tools=*|--disallowedTools=*|--disallowed-tools=*)
+      user_permission_rules=1 ;;
+    --append-system-prompt|--append-system-prompt-file|--append-subagent-system-prompt|\
+    --plugin-dir|--plugin-url|--channels|--agent|--agents|--permission-prompt-tool)
+      user_experiment_extension=1; skip_option_value=1 ;;
+    --append-system-prompt=*|--append-system-prompt-file=*|--append-subagent-system-prompt=*|\
+    --plugin-dir=*|--plugin-url=*|--channels=*|--agent=*|--agents=*|\
+    --permission-prompt-tool=*|--bare)
+      user_experiment_extension=1 ;;
   esac
 done
+
+if [ "$prog_python_enabled" -eq 1 ]; then
+  if [ "${CLAUDE_KISS_PROMPT+x}" = x ] || [ "${CLAUDE_KISS_SETTINGS+x}" = x ] ||
+    [ "$user_setting_sources" -eq 1 ] || [ "$user_settings" -eq 1 ] ||
+    [ "$user_system_prompt" -eq 1 ] || [ "$user_permission_mode" -eq 1 ] ||
+    [ "$user_permission_rules" -eq 1 ] || [ "$has_mcp_config" -eq 1 ] ||
+    [ "$user_experiment_extension" -eq 1 ]; then
+    printf 'claude-kiss: prog-python does not accept prompt, settings, permission, tool, extension, setting-source, or MCP overrides\n' >&2
+    exit 2
+  fi
+fi
 
 if [ "$user_system_prompt" -eq 0 ] && [ ! -f "$prompt" ]; then
   printf 'claude-kiss: prompt not found: %s\n' "$prompt" >&2
@@ -236,6 +305,23 @@ fi
 if [ "$user_settings" -eq 0 ] && [ ! -f "$settings" ]; then
   printf 'claude-kiss: settings not found: %s\n' "$settings" >&2
   exit 1
+fi
+
+if [ "$prog_python_enabled" -eq 1 ]; then
+  prog_python_guard="$home/bin/prog-python-guard"
+  if [ ! -x "$prog_python_guard" ]; then
+    printf 'claude-kiss: prog-python guard is missing or not executable: %s\n' \
+      "$prog_python_guard" >&2
+    exit 1
+  fi
+  for required_command in prog python3; do
+    if ! command -v "$required_command" >/dev/null 2>&1; then
+      printf 'claude-kiss: prog-python requires %s in PATH\n' "$required_command" >&2
+      exit 127
+    fi
+  done
+  CLAUDE_KISS_PROG_PYTHON_GUARD=$prog_python_guard
+  export CLAUDE_KISS_PROG_PYTHON_GUARD
 fi
 
 load_compact_memory=1
@@ -254,6 +340,11 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'claude-kiss %s\n' "$version"
   printf 'home: %s\n' "$home"
   printf 'user config: %s\n' "$config_home"
+  if [ -n "$experiment" ]; then
+    printf 'experiment: %s\n' "$experiment"
+  else
+    printf 'experiment: none\n'
+  fi
   printf 'prompt: %s\n' "$prompt"
   printf 'prompt source: %s\n' "$prompt_source"
   printf 'settings: %s\n' "$settings"
@@ -268,9 +359,9 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   printf 'delegation: %s\n' "$(capability_state "$delegation_enabled")"
   printf 'mcp: %s\n' "$(capability_state "$mcp_enabled")"
   commands_state=enabled
-  [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" != "1" ] || commands_state=disabled
+  [ "$commands_disabled" != "1" ] || commands_state=disabled
   printf 'slash commands: %s\n' "$commands_state"
-  printf 'permission mode: default\n'
+  printf 'permission mode: %s\n' "$default_permission_mode"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then
@@ -278,6 +369,11 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
     printf 'compact memory source: %s\n' "$compact_memory_source"
   else
     printf 'compact memory: disabled\n'
+  fi
+  if [ "$prog_python_enabled" -eq 1 ]; then
+    printf 'prog: %s\n' "$(command -v prog)"
+    printf 'python3: %s\n' "$(command -v python3)"
+    printf 'command guard: %s\n' "$prog_python_guard"
   fi
   printf 'claude: %s\n' "$(command -v "$claude_bin")"
   "$claude_bin" --version
@@ -296,7 +392,7 @@ if [ "${1-}" = "doctor" ] && [ "$#" -eq 1 ]; then
   check_claude_capability '--setting-sources' --setting-sources "$setting_sources"
   check_claude_capability '--settings' --settings "$settings"
   check_claude_capability '--tools' --tools "$tools"
-  check_claude_capability '--permission-mode' --permission-mode default
+  check_claude_capability '--permission-mode' --permission-mode "$default_permission_mode"
   check_claude_capability '--strict-mcp-config' --strict-mcp-config
   check_claude_capability '--disable-slash-commands' --disable-slash-commands
   check_claude_capability '--no-chrome' --no-chrome
@@ -326,7 +422,7 @@ if [ "$user_system_prompt" -eq 0 ]; then
 fi
 set -- --tools "$tools" "$@"
 if [ "$user_permission_mode" -eq 0 ]; then
-  set -- --permission-mode default "$@"
+  set -- --permission-mode "$default_permission_mode" "$@"
 fi
 
 if [ "$load_compact_memory" -eq 1 ]; then
@@ -335,7 +431,7 @@ if [ "$load_compact_memory" -eq 1 ]; then
   set -- --disallowedTools "Read($compact_memory/**)" "Edit($compact_memory/**)" "$@"
 fi
 
-if [ "${CLAUDE_KISS_DISABLE_COMMANDS:-0}" = "1" ]; then
+if [ "$commands_disabled" = "1" ]; then
   set -- --disable-slash-commands "$@"
 fi
 
@@ -351,7 +447,8 @@ set -- --no-chrome "$@"
 if [ "${CLAUDE_KISS_DRY_RUN:-0}" = "1" ]; then
   printf 'command:'
   for argument in "$@"; do printf ' [%s]' "$argument"; done
-  printf '\nprompt: %s\nsettings: %s\n' "$prompt" "$settings"
+  printf '\nexperiment: %s\nprompt: %s\nsettings: %s\n' \
+    "${experiment:-none}" "$prompt" "$settings"
   printf 'DISABLE_AUTO_COMPACT=%s\n' "${DISABLE_AUTO_COMPACT:-0}"
   printf 'DISABLE_COMPACT=%s\n' "${DISABLE_COMPACT:-0}"
   if [ "$load_compact_memory" -eq 1 ]; then

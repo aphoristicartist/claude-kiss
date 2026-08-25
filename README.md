@@ -139,6 +139,34 @@ servers without `CLAUDE_KISS_MCP=1`, and their tools remain outside the built-in
 There is no “enable everything” switch. Use `claude` when you want Claude Code's ordinary
 product surface.
 
+## Experiment: prog + Python
+
+An opt-in experiment replaces the six-tool coding surface with one launcher-selected built-in
+tool, `Bash`, constrained to two executable entry points:
+
+```sh
+CLAUDE_KISS_EXPERIMENT=prog-python claude-kiss
+```
+
+- `python3` batches bounded workspace discovery, reading, searching, and precise edits.
+- [`prog`](https://github.com/aphoristicartist/prog) runs commands, tests, builds, API calls,
+  and the cursor-backed evidence loop.
+
+The experiment uses its own focused prompt and settings, starts in `dontAsk`, disables slash
+commands and normal setting sources, and rejects web, skills, delegation, MCP, prompt,
+settings, tool, permission, and extension overrides. A `PreToolUse` hook blocks Bash calls that
+do not begin with `prog` or `python3`, along with shell pipelines, redirects, compound
+commands, command substitution, and multiline input. Claude Code may still inject its required
+`EndConversation` tool as described in the trust boundary below.
+
+This is a controlled interface experiment, not a sandbox. Python can read and write anything
+the process can access, and `prog run` can execute powerful commands. The prompt forbids using
+Python subprocess or network APIs so that non-workspace operations stay observable through
+`prog`; prompt compliance is measured behavior, not OS enforcement.
+
+Install `prog` and ensure `python3` is in `PATH` before starting this experiment. The normal
+Claude KISS defaults are unchanged.
+
 ## Inspect it
 
 See the resolved launcher inputs and confirm required Claude Code capabilities:
@@ -210,6 +238,8 @@ Claude KISS narrows managed defaults. It is not a sandbox.
 - User, project, and local settings load; their hooks and plugins can run.
 - Repository instructions still enter context, subject to Claude Code's native trust flow.
 - `--tools` limits built-in tools, not tools exposed by connected MCP servers.
+- The prog + Python experiment exposes `Bash` as the carrier; Python and `prog run` retain the
+  process's underlying filesystem, process, and network authority.
 - Claude Code may add required internal tools such as `EndConversation`.
 - User-owned settings and direct native arguments can replace managed defaults.
 - Prompt rules shape behavior; they cannot guarantee model compliance.
@@ -245,10 +275,12 @@ and budget. If `--model` is omitted, each command uses its current default.
 ```sh
 python3 evals/run_evals.py --dry-run
 python3 evals/run_evals.py --tasks scope_discipline
+python3 evals/run_evals.py --include-prog-python --tasks scope_discipline
 ```
 
-The evaluator writes raw JSON and a Markdown report. One run per task is evidence to inspect,
-not a statistical claim.
+The optional third command compares regular Claude, the six-tool KISS default, and the fixed
+prog + Python treatment. It requires `prog` for live runs. The evaluator writes raw JSON and a
+Markdown report. One run per task is evidence to inspect, not a statistical claim.
 
 For local validation and pull-request expectations, see
 [CONTRIBUTING.md](CONTRIBUTING.md).
