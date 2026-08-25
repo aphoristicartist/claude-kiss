@@ -15,7 +15,7 @@ The launcher always:
 
 - executes the selected `claude` binary rather than a fork or proxy;
 - passes a built-in tool list assembled from six core coding tools and enabled convenience
-  switches;
+  switches in normal sessions, or `Bash` alone in the prog + Python experiment;
 - rejects direct `--tools` and `--chrome` arguments;
 - adds `--no-chrome`;
 - supplies its prompt, settings, setting sources, and permission mode unless a matching
@@ -71,6 +71,34 @@ list of Claude Code extension mechanisms.
 loads them on demand. `WaitForMcpServers` covers deployments where tool search is off.
 `ReadMcpResourceDirTool` expands directory resources named by the resource listing tool.
 
+### Prog + Python experiment
+
+`CLAUDE_KISS_EXPERIMENT=prog-python` selects a fixed experimental treatment rather than adding
+a convenience capability. Claude Code receives `Bash` as its only requested built-in tool.
+The managed prompt assigns two executable entry points distinct roles:
+
+| Entry point | Role |
+|---|---|
+| `python3` | Bounded workspace discovery, reading, searching, and precise edits in one program |
+| `prog` | Commands, tests, builds, APIs, logs, bounded disclosure, and exact cached evidence |
+
+The treatment selects `prompt/prog-python.md` and `config/prog-python-settings.json`, ignores
+user-owned KISS prompt and settings copies, passes an empty `--setting-sources` value, starts
+in `dontAsk`, and disables slash commands. Direct prompt, settings, setting-source, permission,
+tool-rule, extension, and MCP overrides are rejected. The web, skills, delegation, and MCP
+switches are also rejected when the experiment is active.
+
+`config/prog-python-settings.json` allows `Bash(prog *)` and `Bash(python3 *)`. Its
+`PreToolUse` hook calls `bin/prog-python-guard`, which denies other command prefixes and shell
+composition such as pipes, redirects, command substitution, compound commands, and multiline
+input. The guard runs before normal permission evaluation, including for commands Claude Code
+otherwise classifies as read-only.
+
+The guard does not inspect Python semantics or commands nested behind `prog run`. Python can
+open files, network sockets, or subprocesses if the model disregards the prompt, and `prog run`
+can execute arbitrary argv. This is a reproducible model-and-interface experiment, not a
+security boundary. Use OS sandboxing when enforcement against the process is required.
+
 ### MCP behavior
 
 MCP has two separate surfaces:
@@ -85,6 +113,9 @@ With neither an environment switch nor a native MCP argument, the launcher passe
 ```
 
 That suppresses configured server discovery for the session.
+
+The prog + Python experiment always takes this empty MCP path and rejects both
+`CLAUDE_KISS_MCP=1` and direct `--mcp-config` arguments.
 
 With `CLAUDE_KISS_MCP=1`, the launcher stops adding the strict empty configuration and adds
 the five MCP helper tools above. Claude Code then performs its normal MCP discovery.
@@ -122,7 +153,10 @@ The managed files are:
 
 ```text
 prompt/claude-kiss.md
+prompt/prog-python.md
 config/settings.json
+config/prog-python-settings.json
+bin/prog-python-guard
 memory/CLAUDE.md
 ```
 
@@ -165,6 +199,10 @@ arguments pass through, but they do not necessarily widen the built-in tool list
 Environment-selected prompt, settings, and compact-memory paths take precedence over
 user-owned copies. User-owned copies take precedence over managed files.
 
+The prog + Python experiment is the exception to that customization rule: it rejects prompt,
+settings, setting-source, permission, tool-rule, extension, and MCP overrides so repeated
+evaluations use the same treatment. Exit the experiment to customize those inputs normally.
+
 ## Session environment variables
 
 | Variable | Effect |
@@ -173,6 +211,7 @@ user-owned copies. User-owned copies take precedence over managed files.
 | `CLAUDE_KISS_SKILLS=1` | Add `Skill` |
 | `CLAUDE_KISS_DELEGATION=1` | Add `Agent` |
 | `CLAUDE_KISS_MCP=1` | Restore normal MCP discovery and add MCP helper tools |
+| `CLAUDE_KISS_EXPERIMENT=prog-python` | Select the fixed Bash-carried prog + Python experiment |
 | `CLAUDE_KISS_DISABLE_COMMANDS=1` | Pass `--disable-slash-commands` |
 | `CLAUDE_KISS_CLAUDE_MD=0` | Disable Claude memory files and omit the compact handoff policy |
 | `CLAUDE_KISS_COMPACT_MEMORY=PATH` | Use a directory containing `CLAUDE.md`; use `0` to omit it |
@@ -212,6 +251,10 @@ working directory; Claude KISS adds no second trust system.
 Pass a direct `--setting-sources` value when a task needs a narrower set. Use
 `CLAUDE_KISS_ISOLATED=1` when you also want separate user-level Claude state.
 
+The prog + Python experiment instead passes an empty setting-source value. Its managed
+experimental settings still load through `--settings`, while user, project, and local settings
+cannot add hooks, plugins, permissions, or MCP configuration to the measured treatment.
+
 ## Compaction
 
 Claude KISS does not set a compaction threshold. It adds `memory/CLAUDE.md` as an additional
@@ -240,6 +283,7 @@ the KISS compact policy.
 - managed and user configuration locations;
 - selected prompt, settings, and compact-memory sources;
 - the built-in tool string and convenience-switch states;
+- the selected experiment and, for prog + Python, resolved executable and command-guard paths;
 - setting sources, slash-command state, permission default, and compaction variables;
 - the resolved Claude executable;
 - compatibility with the core flags the launcher needs.
@@ -317,5 +361,6 @@ installation are always preserved.
 - POSIX `sh`
 - macOS or Linux
 - Claude Code with the core flags checked by `claude-kiss doctor`
+- `python3` and `prog` in `PATH` for the optional prog + Python experiment
 - `curl` or `wget` for standalone downloads
 - `tar` and either `sha256sum` or `shasum` for canonical release extraction and verification
