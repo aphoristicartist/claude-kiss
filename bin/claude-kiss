@@ -67,7 +67,6 @@ commands_disabled="${CLAUDE_KISS_DISABLE_COMMANDS:-0}"
 if [ "$prog_python_enabled" -eq 1 ]; then
   setting_sources=
   default_permission_mode=dontAsk
-  commands_disabled=1
 fi
 
 # The launcher owns the core built-in tool allowlist. Four convenience switches add common
@@ -179,8 +178,9 @@ four capabilities exposed as KISS environment switches. Native settings and expl
 Claude arguments remain in effect. Any direct Claude argument, such as --permission-mode
 or --setting-sources, replaces the matching KISS default.
 The prog-python experiment is intentionally stricter: it selects its own prompt, settings,
-empty setting sources, dontAsk permission mode, and disabled slash commands. Direct
-arguments cannot replace those treatment inputs.
+empty setting sources, and dontAsk permission mode. Built-in session commands such as
+/model and /context remain available, while discovered and bundled skills stay disabled.
+Direct arguments cannot replace those treatment inputs.
 Compaction keeps Claude's own timing and adds a concise editable compact-instructions
 memory. Change it with Claude's native --autocompact, DISABLE_AUTO_COMPACT, and
 DISABLE_COMPACT.

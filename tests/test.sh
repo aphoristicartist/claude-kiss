@@ -479,7 +479,8 @@ grep -q '^experiment: prog-python$' "$temporary/prog-python.txt"
 grep -q '\[--tools\] \[Bash\]' "$temporary/prog-python.txt"
 grep -q '\[--permission-mode\] \[dontAsk\]' "$temporary/prog-python.txt"
 grep -q '\[--setting-sources\] \[\]' "$temporary/prog-python.txt"
-grep -q -- '--disable-slash-commands' "$temporary/prog-python.txt"
+refute "$temporary/prog-python.txt" '--disable-slash-commands' \
+  'prog-python must retain built-in session commands such as /model and /context'
 grep -q -- '--strict-mcp-config' "$temporary/prog-python.txt"
 grep -q 'mcpServers' "$temporary/prog-python.txt"
 grep -F -q "$repo_dir/prompt/prog-python.md" "$temporary/prog-python.txt"
@@ -495,7 +496,7 @@ PATH="$profile_path:$PATH" CLAUDE_KISS_EXPERIMENT=prog-python \
 grep -q '^experiment: prog-python$' "$temporary/prog-python-doctor.txt"
 grep -q '^tools: Bash$' "$temporary/prog-python-doctor.txt"
 grep -q '^setting sources: $' "$temporary/prog-python-doctor.txt"
-grep -q '^slash commands: disabled$' "$temporary/prog-python-doctor.txt"
+grep -q '^slash commands: enabled$' "$temporary/prog-python-doctor.txt"
 grep -q '^permission mode: dontAsk$' "$temporary/prog-python-doctor.txt"
 grep -F -q "command guard: $repo_dir/bin/prog-python-guard" \
   "$temporary/prog-python-doctor.txt"
