@@ -24,6 +24,34 @@ def deny(reason: str) -> None:
     sys.stdout.write("\n")
 
 
+def has_unquoted_line_break(command: str) -> bool:
+    """Return whether a line break can be interpreted by the shell."""
+    quote = None
+    escaped = False
+
+    for character in command:
+        if character in "\r\n" and quote is None:
+            return True
+        if escaped:
+            escaped = False
+            continue
+        if quote == "'":
+            if character == "'":
+                quote = None
+            continue
+        if character == "\\":
+            escaped = True
+            continue
+        if quote == '"':
+            if character == '"':
+                quote = None
+            continue
+        if character in {"'", '"'}:
+            quote = character
+
+    return False
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -36,8 +64,11 @@ def main() -> int:
         deny("prog-python requires a non-empty prog or python3 invocation")
         return 0
 
-    if "\n" in command or "\r" in command:
-        deny("prog-python blocks multiline shell input; use python3 -c or exact prog argv")
+    if has_unquoted_line_break(command):
+        deny(
+            "prog-python blocks line breaks outside quoted arguments; "
+            "put multiline source inside the quoted python3 -c argument"
+        )
         return 0
     if "$(" in command or "`" in command:
         deny("prog-python blocks shell command substitution")

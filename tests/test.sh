@@ -104,6 +104,7 @@ for allowed in [
     "prog",
     "prog run -- cargo test --workspace",
     "python3 -c 'from pathlib import Path; print(Path.cwd())'",
+    'python3 -c "\nfrom pathlib import Path\nprint(Path.cwd())\n"',
 ]:
     assert guard_result(allowed) == "", allowed
 

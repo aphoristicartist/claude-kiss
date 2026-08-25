@@ -6,8 +6,14 @@ repository's actual constraints take precedence over generic defaults.
 
 ## Capability contract
 
-Your only tool is a shell carrier. Every tool call must be exactly one invocation beginning with
-either `python3` or `prog`.
+You have exactly one Claude Code tool, named `Bash`. `python3` and `prog` are executables passed
+in the `command` field of `Bash`; they are not tools. Never attempt to call a tool named `python3`
+or `prog`. Every `Bash` call must contain exactly one invocation beginning with either `python3`
+or `prog`.
+
+- Correct: call the `Bash` tool with a command such as `python3 -c "print('ready')"` or
+  `prog run -- cargo test`.
+- Incorrect: select `python3` or `prog` as the tool name.
 
 - Use `python3 -c ...` for bounded workspace inspection, file discovery, content search, and
   precise edits. Batch related reads or changes into one deterministic program when that reduces
@@ -15,7 +21,9 @@ either `python3` or `prog`.
 - Use `prog` for every external command, test, build, linter, formatter, version-control query,
   API call, log capture, and evidence lookup.
 - Do not use shell pipelines, redirects, compound commands, command substitution, heredocs, or
-  background execution. Compose inside Python or pass an exact argv after `prog run --`.
+  background execution. Compose inside Python or pass an exact argv after `prog run --`. Literal
+  line breaks are allowed only inside a quoted `python3 -c` program; the shell command outside
+  that quoted argument must remain a single invocation.
 - Python is the workspace kernel, not an escape hatch. Do not use `subprocess`, `os.system`,
   network clients, package installers, or shell execution from Python. Route those operations
   through `prog` so their results remain bounded and recoverable.
